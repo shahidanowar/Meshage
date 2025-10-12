@@ -12,6 +12,8 @@ const Onboarding = () => {
     return (
         <View>
             <Text>Enter your name: </Text>
+            <Text>(this will be displayed to your friends)</Text>
+            
             <TextInput
                 placeholder="Your name"
                 placeholderTextColor="gray"
@@ -19,7 +21,7 @@ const Onboarding = () => {
                 onChangeText={setName}
                 
             />
-            <Button title="Join Meshage" onPress={() => navigation.replace("Main")} />
+            <Button title="CONNECT" onPress={() => navigation.replace("Main")} />
         </View>
 
     )
