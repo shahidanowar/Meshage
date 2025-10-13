@@ -11,6 +11,8 @@ interface Peer {
   deviceName: string;
   deviceAddress: string;
   status: number;
+  persistentId?: string; // Persistent device ID extracted from deviceName
+  displayName?: string; // Username extracted from deviceName
 }
 
 interface DiscoveryEvent {
@@ -34,6 +36,24 @@ interface ConnectionInfo {
 const { MeshNetwork } = NativeModules;
 const MeshNetworkEvents = new NativeEventEmitter(MeshNetwork);
 
+// Utility function to parse device identifier "username|deviceId"
+const parseDeviceIdentifier = (deviceName: string): { displayName: string; persistentId?: string } => {
+  const parts = deviceName.split('|');
+  
+  if (parts.length === 2) {
+    return {
+      displayName: parts[0],
+      persistentId: parts[1],
+    };
+  }
+  
+  // Fallback for devices without persistent ID (old format or other apps)
+  return {
+    displayName: deviceName,
+    persistentId: undefined,
+  };
+};
+
 export const useChatScreen = () => {
   const [status, setStatus] = useState<string>('Not Initialized');
   const [peers, setPeers] = useState<Peer[]>([]);
@@ -46,6 +66,7 @@ export const useChatScreen = () => {
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('User');
   const [showPeerModal, setShowPeerModal] = useState<boolean>(false);
+  const [deviceId, setDeviceId] = useState<string>('');
   const messagesEndRef = useRef<any>(null);
   const hasAutoStarted = useRef<boolean>(false);
   const connectionAttempts = useRef<Map<string, number>>(new Map());
@@ -100,13 +121,27 @@ export const useChatScreen = () => {
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Load username from storage
+      // Load username and device ID from storage
       const savedUsername = await StorageService.getUsername();
+      const savedDeviceId = await StorageService.getDeviceId(); // Gets or creates device ID
+      
       if (savedUsername) {
         setUsername(savedUsername);
-        // Update device name with username
-        MeshNetwork.setDeviceName(savedUsername);
       }
+      
+      setDeviceId(savedDeviceId);
+      
+      // Create device identifier: "username|deviceId"
+      // Format: "Alice|abc-123-def" so other devices can parse it
+      const deviceIdentifier = savedUsername 
+        ? `${savedUsername}|${savedDeviceId}` 
+        : `User|${savedDeviceId}`;
+      
+      console.log('Device Identifier:', deviceIdentifier);
+      console.log('Persistent Device ID:', savedDeviceId);
+      
+      // Update device name with username AND device ID
+      MeshNetwork.setDeviceName(deviceIdentifier);
       
       MeshNetwork.init();
       setStatus('Initialized');
@@ -158,13 +193,27 @@ export const useChatScreen = () => {
     const onPeersFoundListener = MeshNetworkEvents.addListener(
       'onPeersFound',
       (event: Peer[]) => {
-        console.log('Peers found:', event);
-        setPeers(event);
+        console.log('Peers found (raw):', event);
+        
+        // Parse device identifiers and add persistent IDs
+        const parsedPeers = event.map((peer: Peer) => {
+          const { displayName, persistentId } = parseDeviceIdentifier(peer.deviceName);
+          
+          return {
+            ...peer,
+            displayName,
+            persistentId,
+          };
+        });
+        
+        console.log('Peers found (parsed):', parsedPeers);
+        setPeers(parsedPeers);
         
         // Always auto-connect to available peers
-        if (event.length > 0) {
-          event.forEach((peer: Peer) => {
+        if (parsedPeers.length > 0) {
+          parsedPeers.forEach((peer: Peer) => {
             if (peer.status === 3 && !connectedPeers.includes(peer.deviceAddress)) {
+              console.log(`Found peer: ${peer.displayName} (ID: ${peer.persistentId || 'none'})`);
               attemptConnection(peer);
             }
           });
@@ -197,7 +246,29 @@ export const useChatScreen = () => {
 
         if (eventStatus.includes('Failed')) {
           const errorMsg = message || `Error code ${reasonCode || 'Unknown'}`;
-          setStatus(`Discovery Failed: ${errorMsg}`);
+          setStatus(`Discovery Failed: ${errorMsg} - Retrying...`);
+          
+          // Auto-retry on discovery failure
+          console.log('Discovery failed - Auto-retrying in 3 seconds...');
+          setTimeout(() => {
+            console.log('Restarting discovery...');
+            MeshNetwork.discoverPeers();
+          }, 3000); // Retry after 3 seconds
+          
+        } else if (eventStatus.toLowerCase().includes('already')) {
+          // Handle "Already discovering" error
+          setStatus('Already discovering - Resetting...');
+          console.log('Already discovering error - Resetting and restarting...');
+          
+          // Stop and restart
+          setTimeout(() => {
+            MeshNetwork.stopDiscovery();
+            setTimeout(() => {
+              console.log('Restarting discovery after reset...');
+              MeshNetwork.discoverPeers();
+            }, 1000);
+          }, 1000);
+          
         } else {
           setStatus(eventStatus);
         }
@@ -275,12 +346,61 @@ export const useChatScreen = () => {
         console.log('Message sent:', data);
       },
     );
-
     const onConnectionErrorListener = MeshNetworkEvents.addListener(
       'onConnectionError',
       (error: any) => {
-        console.error('Connection error:', error);
-        setStatus(`Connection Error: ${JSON.stringify(error)}`);
+        // Handle specific error codes
+        const reasonCode = error?.reasonCode || error;
+        const deviceAddress = error?.deviceAddress;
+        
+        // Log all errors for debugging, but some are just informational
+        console.log('Connection event:', { reasonCode, deviceAddress });
+        
+        let errorMessage = 'Connection Error';
+        
+        switch (reasonCode) {
+          case 1:
+            // Error code 1 is informational - "Already advertising/discovering"
+            // This is normal after connection succeeds, not a real error
+            console.log('Info: Already advertising/discovering (this is normal)');
+            // Don't show error message or reset - this is harmless
+            return; // Exit early, don't update status
+            break;
+          case 3:
+            errorMessage = 'Peer no longer available';
+            console.log(`Error code 3 (Endpoint Unknown) for ${deviceAddress} - Peer left the network`);
+            // Stop retrying for this peer since it's gone
+            const timer = connectionRetryTimers.current.get(deviceAddress);
+            if (timer) {
+              clearTimeout(timer);
+              connectionRetryTimers.current.delete(deviceAddress);
+              console.log(`Stopped retrying connection to ${deviceAddress}`);
+            }
+            connectionAttempts.current.delete(deviceAddress);
+            break;
+          case 13:
+            errorMessage = 'Network I/O Error - Will retry automatically';
+            console.log(`Error code 13 (IO Error) for ${deviceAddress} - Retry logic will handle this`);
+            break;
+          case 8001:
+            errorMessage = 'Connection rejected';
+            console.log(`Error code 8001 (Rejected) for ${deviceAddress}`);
+            break;
+          case 8002:
+            errorMessage = 'Connection failed - Will retry';
+            console.log(`Error code 8002 (Connection Failed) for ${deviceAddress} - Will retry`);
+            // Let the automatic retry logic handle this
+            break;
+          default:
+
+
+            console.log(`Unknown connection error: ${reasonCode} for ${deviceAddress}`);
+            errorMessage = `Error code ${reasonCode}`;
+        }
+        
+        setStatus(errorMessage);
+        
+        // Note: Retry logic will automatically handle this in the attemptConnection function
       },
     );
 
@@ -387,6 +507,7 @@ export const useChatScreen = () => {
     selectedPeer,
     messagesEndRef,
     username,
+    deviceId, // Persistent device ID for friends feature
     showPeerModal,
     
     // State setters
