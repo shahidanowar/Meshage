@@ -1,0 +1,238 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1c1c1e',
+  },
+  header: {
+    padding: 20,
+    backgroundColor: '#2c2c2e',
+  },
+  username: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  status: {
+    fontSize: 14,
+    color: '#a9a9a9',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 10,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  connectionBadge: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#007aff20',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#007aff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  badgeSubtext: {
+    color: '#8e8e93',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    backgroundColor: '#007aff',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#007aff80',
+  },
+  disconnectButton: {
+    backgroundColor: '#ff3b30',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  discoveringContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    backgroundColor: '#007aff20',
+    borderRadius: 8,
+  },
+  discoveringText: {
+    color: '#007aff',
+    fontSize: 14,
+    marginLeft: 10,
+  },
+  stopButton: {
+    backgroundColor: '#ff3b30',
+  },
+  resetButton: {
+    backgroundColor: '#6b7280',
+  },
+  stopButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  listContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  listHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 15,
+    marginTop: 10,
+  },
+  peerItem: {
+    flexDirection: 'row',
+    backgroundColor: '#2c2c2e',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  peerInfo: {
+    flex: 1,
+  },
+  peerName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  peerAddress: {
+    fontSize: 12,
+    color: '#8e8e93',
+    marginTop: 4,
+  },
+  peerStatus: {
+    fontSize: 13,
+    color: '#34c759',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  connectButton: {
+    backgroundColor: '#007aff',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  connectButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    marginTop: 40,
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#8e8e93',
+    fontSize: 16,
+  },
+  // Chat Interface Styles
+  chatContainer: {
+    flex: 1,
+  },
+  messagesContainer: {
+    flex: 1,
+    backgroundColor: '#1c1c1e',
+  },
+  messagesContent: {
+    padding: 20,
+  },
+  messageItem: {
+    maxWidth: '80%',
+    marginBottom: 15,
+    padding: 12,
+    borderRadius: 12,
+  },
+  sentMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007aff',
+  },
+  receivedMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#2c2c2e',
+  },
+  messageSender: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#a9a9a9',
+    marginBottom: 4,
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  messageTime: {
+    fontSize: 10,
+    color: '#a9a9a9',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    padding: 15,
+    backgroundColor: '#2c2c2e',
+    borderTopWidth: 1,
+    borderTopColor: '#3a3a3c',
+    alignItems: 'center',
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 16,
+    marginRight: 10,
+  },
+  sendButton: {
+    backgroundColor: '#007aff',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
