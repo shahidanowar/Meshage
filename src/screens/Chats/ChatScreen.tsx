@@ -20,9 +20,6 @@ const ChatScreen = () => {
     status,
     peers,
     connectedPeers,
-    isDiscovering,
-    isConnected,
-    isGroupOwner,
     messages,
     messageText,
     messagesEndRef,
@@ -30,11 +27,7 @@ const ChatScreen = () => {
     showPeerModal,
     setMessageText,
     setShowPeerModal,
-    handleDiscoverPeers,
-    handleStopDiscovery,
-    handleResetDiscovery,
     handleConnectToPeer,
-    handleDisconnect,
     handleSendMessage,
     getPeerStatusText,
   } = useChatScreen();
@@ -104,43 +97,6 @@ const ChatScreen = () => {
         </View>
         
         <Text style={styles.status}>status: {status}</Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        
-          <>
-            <TouchableOpacity
-              style={[styles.button, isDiscovering && styles.buttonDisabled]}
-              onPress={handleDiscoverPeers}
-              disabled={isDiscovering}>
-              <Text style={styles.buttonText}>
-                {isDiscovering ? 'Discovering...' : 'Discover Peers'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.stopButton,
-                !isDiscovering && styles.buttonDisabled,
-              ]}
-              onPress={handleStopDiscovery}
-              disabled={!isDiscovering}>
-              <Text style={styles.buttonText}>Stop</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.resetButton]}
-              onPress={handleResetDiscovery}>
-              <Text style={styles.buttonText}>Reset</Text>
-            </TouchableOpacity>
-          </>
-        
-          <TouchableOpacity
-            style={[styles.button, styles.disconnectButton]}
-            onPress={handleDisconnect}>
-            <Text style={styles.buttonText}>Disconnect</Text>
-          </TouchableOpacity>
-        
       </View>
 
       {/* Chat Interface - Always Visible */}
@@ -223,9 +179,7 @@ const ChatScreen = () => {
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    {isDiscovering 
-                      ? 'Scanning for nearby devices...' 
-                      : 'No peers found. Discovery is running in background.'}
+                    No peers found nearby. Auto-discovery is running...
                   </Text>
                 </View>
               }

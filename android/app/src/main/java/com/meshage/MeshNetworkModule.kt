@@ -31,9 +31,17 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
     private val discoveredEndpoints = mutableMapOf<String, String>()
     private val connectedEndpoints = mutableSetOf<String>()
     
+    // Track recently seen messages to prevent duplicates (message hash -> timestamp)
+    private val seenMessages = mutableMapOf<String, Long>()
+    private val MESSAGE_CACHE_DURATION = 60000L // 60 seconds
+    
+    // Store local endpoint ID for message tracking
+    private var localEndpointId: String = ""
+    
     companion object {
         private const val SERVICE_ID = "com.meshage.mesh"
         private const val TAG = "MeshNetworkModule"
+        private const val MESSAGE_SEPARATOR = "|||" // Separator for originalSender|||message
     }
 
     override fun getName() = "MeshNetwork"
@@ -95,6 +103,12 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
                         Log.d(TAG, "Connection Successful to $endpointId")
                         connectedEndpoints.add(endpointId)
                         
+                        // Store our own endpoint ID (use the first connection as reference)
+                        if (localEndpointId.isEmpty()) {
+                            localEndpointId = "local-${System.currentTimeMillis()}"
+                            Log.d(TAG, "Local endpoint ID set to: $localEndpointId")
+                        }
+                        
                         // Emit connection changed event
                         sendEvent("onConnectionChanged", Arguments.createMap().apply {
                             putBoolean("isGroupOwner", false) // Nearby is P2P, no group owner concept
@@ -133,18 +147,46 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
                 override fun onPayloadReceived(endpointId: String, payload: Payload) {
                     when (payload.type) {
                         Payload.Type.BYTES -> {
-                            val message = String(payload.asBytes()!!, StandardCharsets.UTF_8)
-                            Log.d(TAG, "Message received from $endpointId: $message")
+                            val rawMessage = String(payload.asBytes()!!, StandardCharsets.UTF_8)
                             
-                            // Emit message received event
+                            // Parse message format: "originalSenderId|||messageContent"
+                            val parts = rawMessage.split(MESSAGE_SEPARATOR, limit = 2)
+                            if (parts.size != 2) {
+                                Log.w(TAG, "Invalid message format received: $rawMessage")
+                                return
+                            }
+                            
+                            val originalSenderId = parts[0]
+                            val messageContent = parts[1]
+                            
+                            // Create hash based on original sender + message content
+                            // This allows different users to send the same message
+                            val messageHash = "$originalSenderId:$messageContent".hashCode().toString()
+                            
+                            // Check if we've already seen this message
+                            val currentTime = System.currentTimeMillis()
+                            if (seenMessages.containsKey(messageHash)) {
+                                Log.d(TAG, "Duplicate message detected (already seen), ignoring: $messageContent from $originalSenderId")
+                                return
+                            }
+                            
+                            // Mark this message as seen
+                            seenMessages[messageHash] = currentTime
+                            
+                            // Clean up old messages from cache
+                            cleanupOldMessages(currentTime)
+                            
+                            Log.d(TAG, "Message received from $originalSenderId (via $endpointId): $messageContent")
+                            
+                            // Emit message received event with ORIGINAL sender
                             sendEvent("onMessageReceived", Arguments.createMap().apply {
-                                putString("message", message)
-                                putString("fromAddress", endpointId)
-                                putDouble("timestamp", System.currentTimeMillis().toDouble())
+                                putString("message", messageContent)
+                                putString("fromAddress", originalSenderId)
+                                putDouble("timestamp", currentTime.toDouble())
                             })
                             
-                            // Forward message to other connected peers (mesh routing)
-                            forwardMessageToOthers(message, endpointId)
+                            // Forward the ORIGINAL message (with original sender ID) to other peers
+                            forwardMessageToOthers(rawMessage, endpointId)
                         }
                         else -> Log.d(TAG, "Received non-BYTES payload type, ignoring")
                     }
@@ -157,6 +199,13 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
                     // Not needed for simple messaging, but required to implement
                 }
             }
+    
+    private fun cleanupOldMessages(currentTime: Long) {
+        // Remove messages older than MESSAGE_CACHE_DURATION
+        seenMessages.entries.removeIf { entry ->
+            currentTime - entry.value > MESSAGE_CACHE_DURATION
+        }
+    }
     
     private fun forwardMessageToOthers(message: String, senderEndpointId: String) {
         // Forward to all connected peers except the sender (mesh routing)
@@ -256,6 +305,7 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
         connectionsClient.stopAllEndpoints()
         connectedEndpoints.clear()
         discoveredEndpoints.clear()
+        seenMessages.clear() // Clear message deduplication cache
         Log.d(TAG, "Disconnected from all peers")
         sendEvent("onDisconnected", Arguments.createMap().apply {
             putBoolean("success", true)
@@ -264,7 +314,19 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun sendMessage(message: String, targetAddress: String?) {
-        val payload = Payload.fromBytes(message.toByteArray(StandardCharsets.UTF_8))
+        // Ensure we have a local endpoint ID
+        if (localEndpointId.isEmpty()) {
+            localEndpointId = "local-${System.currentTimeMillis()}"
+        }
+        
+        // Format: "originalSenderId|||messageContent"
+        val formattedMessage = "$localEndpointId$MESSAGE_SEPARATOR$message"
+        val payload = Payload.fromBytes(formattedMessage.toByteArray(StandardCharsets.UTF_8))
+        
+        // Mark sent message as seen to prevent receiving it back from others
+        val messageHash = "$localEndpointId:$message".hashCode().toString()
+        seenMessages[messageHash] = System.currentTimeMillis()
+        Log.d(TAG, "Marked sent message as seen: $message")
         
         if (targetAddress != null) {
             // Send to specific peer
