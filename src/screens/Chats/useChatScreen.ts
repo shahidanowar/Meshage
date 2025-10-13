@@ -44,10 +44,12 @@ export const useChatScreen = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState<string>('');
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
-  const [autoConnectEnabled, setAutoConnectEnabled] = useState<boolean>(true);
   const [username, setUsername] = useState<string>('User');
+  const [showPeerModal, setShowPeerModal] = useState<boolean>(false);
   const messagesEndRef = useRef<any>(null);
   const hasAutoStarted = useRef<boolean>(false);
+  const connectionAttempts = useRef<Map<string, number>>(new Map());
+  const connectionRetryTimers = useRef<Map<string, any>>(new Map());
 
   const requestPermissions = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
@@ -126,18 +128,44 @@ export const useChatScreen = () => {
 
     initializeApp();
 
+    const attemptConnection = (peer: Peer) => {
+      const attempts = connectionAttempts.current.get(peer.deviceAddress) || 0;
+      
+      if (!connectedPeers.includes(peer.deviceAddress)) {
+        console.log(`Auto-connecting to: ${peer.deviceName} (attempt ${attempts + 1})`);
+        MeshNetwork.connectToPeer(peer.deviceAddress);
+        connectionAttempts.current.set(peer.deviceAddress, attempts + 1);
+        
+        // Set retry timer (retry after 5 seconds if connection fails)
+        const existingTimer = connectionRetryTimers.current.get(peer.deviceAddress);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        
+        const retryTimer = setTimeout(() => {
+          // Check if still not connected and peer still available
+          if (!connectedPeers.includes(peer.deviceAddress) && 
+              peers.some(p => p.deviceAddress === peer.deviceAddress && p.status === 3)) {
+            console.log(`Retrying connection to: ${peer.deviceName}`);
+            attemptConnection(peer);
+          }
+        }, 5000); // Retry after 5 seconds
+        
+        connectionRetryTimers.current.set(peer.deviceAddress, retryTimer);
+      }
+    };
+
     const onPeersFoundListener = MeshNetworkEvents.addListener(
       'onPeersFound',
       (event: Peer[]) => {
         console.log('Peers found:', event);
         setPeers(event);
         
-        // Auto-connect to available peers
-        if (autoConnectEnabled && !isConnected && event.length > 0) {
+        // Always auto-connect to available peers
+        if (event.length > 0) {
           event.forEach((peer: Peer) => {
             if (peer.status === 3 && !connectedPeers.includes(peer.deviceAddress)) {
-              console.log('Auto-connecting to:', peer.deviceName);
-              MeshNetwork.connectToPeer(peer.deviceAddress);
+              attemptConnection(peer);
             }
           });
         }
@@ -205,6 +233,15 @@ export const useChatScreen = () => {
         console.log('Peer connected:', address);
         setConnectedPeers(prev => [...new Set([...prev, address])]);
         setStatus(`Peer connected: ${address}`);
+        
+        // Clear retry timer for this peer since connection succeeded
+        const timer = connectionRetryTimers.current.get(address);
+        if (timer) {
+          clearTimeout(timer);
+          connectionRetryTimers.current.delete(address);
+        }
+        // Reset connection attempts
+        connectionAttempts.current.delete(address);
       },
     );
 
@@ -256,6 +293,13 @@ export const useChatScreen = () => {
       onMessageReceivedListener.remove();
       onMessageSentListener.remove();
       onConnectionErrorListener.remove();
+      
+      // Clear all retry timers
+      connectionRetryTimers.current.forEach((timer) => {
+        clearTimeout(timer);
+      });
+      connectionRetryTimers.current.clear();
+      connectionAttempts.current.clear();
     };
   }, []);
 
@@ -342,12 +386,12 @@ export const useChatScreen = () => {
     messageText,
     selectedPeer,
     messagesEndRef,
-    autoConnectEnabled,
     username,
+    showPeerModal,
     
     // State setters
     setMessageText,
-    setAutoConnectEnabled,
+    setShowPeerModal,
     
     // Handlers
     handleDiscoverPeers,

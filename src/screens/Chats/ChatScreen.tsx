@@ -5,13 +5,12 @@ import {
   TouchableOpacity,
   FlatList,
   Platform,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
   ScrollView,
-  Switch,
+  Modal,
 } from 'react-native';
 import { useChatScreen } from './useChatScreen';
 import { styles } from './ChatScreen.styles';
@@ -27,10 +26,10 @@ const ChatScreen = () => {
     messages,
     messageText,
     messagesEndRef,
-    autoConnectEnabled,
     username,
+    showPeerModal,
     setMessageText,
-    setAutoConnectEnabled,
+    setShowPeerModal,
     handleDiscoverPeers,
     handleStopDiscovery,
     handleResetDiscovery,
@@ -40,22 +39,34 @@ const ChatScreen = () => {
     getPeerStatusText,
   } = useChatScreen();
 
-  const renderPeer = ({ item }: { item: any }) => (
-    <View style={styles.peerItem}>
-      <View style={styles.peerInfo}>
-        <Text style={styles.peerName}>{item.deviceName}</Text>
-        <Text style={styles.peerAddress}>{item.deviceAddress}</Text>
-        <Text style={styles.peerStatus}>{getPeerStatusText(item.status)}</Text>
+  const renderPeer = ({ item }: { item: any }) => {
+    const isConnectedPeer = connectedPeers.includes(item.deviceAddress);
+    
+    return (
+      <View style={styles.peerItem}>
+        <View style={styles.peerInfo}>
+          <Text style={styles.peerName}>{item.deviceName}</Text>
+          <Text style={styles.peerAddress}>{item.deviceAddress}</Text>
+          <Text style={[
+            styles.peerStatus,
+            isConnectedPeer && { color: '#34c759' }
+          ]}>
+            {isConnectedPeer ? '✓ Connected' : getPeerStatusText(item.status)}
+          </Text>
+        </View>
+        {!isConnectedPeer && item.status === 3 && (
+          <TouchableOpacity
+            style={styles.connectButton}
+            onPress={() => {
+              handleConnectToPeer(item.deviceAddress);
+              setShowPeerModal(false);
+            }}>
+            <Text style={styles.connectButtonText}>Connect</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      {!isConnected && item.status === 3 && (
-        <TouchableOpacity
-          style={styles.connectButton}
-          onPress={() => handleConnectToPeer(item.deviceAddress)}>
-          <Text style={styles.connectButtonText}>Connect</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+    );
+  };
 
   const renderMessage = ({ item }: { item: any }) => (
     <View
@@ -74,35 +85,25 @@ const ChatScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.username}>👤 {username}</Text>
-        <Text style={styles.status}>{status}</Text>
-        
-        {/* Auto-Connect Toggle */}
-        <View style={styles.toggleContainer}>
-          <Text style={styles.toggleLabel}>Auto-Connect</Text>
-          <Switch
-            value={autoConnectEnabled}
-            onValueChange={setAutoConnectEnabled}
-            trackColor={{ false: '#767577', true: '#007aff' }}
-            thumbColor={autoConnectEnabled ? '#fff' : '#f4f3f4'}
-          />
+        <View style={styles.headerTop}>
+          <Text style={styles.username}>{username}</Text>
+          
+          {/* Peer List Button */}
+          <TouchableOpacity
+            style={styles.peerListButton}
+            onPress={() => setShowPeerModal(true)}>
+            <Text style={styles.peerListButtonText}>
+              👥 {peers.length}
+            </Text>
+          </TouchableOpacity>
         </View>
         
-        {isConnected && (
-          <View style={styles.connectionBadge}>
-            <Text style={styles.badgeText}>
-              {isGroupOwner ? '👑 Group Owner' : '🔗 Connected'}
-            </Text>
-            <Text style={styles.badgeSubtext}>
-              {connectedPeers.length} peer(s) connected
-            </Text>
-          </View>
-        )}
+        <Text style={styles.status}>status: {status}</Text>
       </View>
 
       {/* Action Buttons */}
@@ -142,87 +143,98 @@ const ChatScreen = () => {
         
       </View>
 
-      {/* Discovering Indicator */}
-      {isDiscovering && (
-        <View style={styles.discoveringContainer}>
-          <ActivityIndicator size="small" color="#007aff" />
-          <Text style={styles.discoveringText}>Scanning for peers...</Text>
-        </View>
-      )}
-
-      {/* Main Content */}
-      {!isConnected ? (
-        /* Peer List */
-        <FlatList
-          data={peers}
-          renderItem={renderPeer}
-          keyExtractor={item => item.deviceAddress}
-          ListHeaderComponent={
-            <Text style={styles.listHeader}>
-              Discovered Peers ({peers.length})
-            </Text>
-          }
-          ListEmptyComponent={
+      {/* Chat Interface - Always Visible */}
+      <KeyboardAvoidingView
+        style={styles.chatContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}>
+        {/* Messages List */}
+        <ScrollView
+          ref={messagesEndRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          onContentSizeChange={() =>
+            messagesEndRef.current?.scrollToEnd({ animated: true })
+          }>
+          {messages.length === 0 ? (
             <View style={styles.emptyContainer}>
-              {!isDiscovering && (
-                <Text style={styles.emptyText}>
-                  No peers found. Tap "Discover Peers" to scan.
-                </Text>
-              )}
+              <Text style={styles.emptyText}>
+                {connectedPeers.length > 0 
+                  ? 'No messages yet. Start chatting!'
+                  : 'Waiting for peers to connect...\nYou can start typing below!'}
+              </Text>
             </View>
-          }
-          contentContainerStyle={styles.listContainer}
-        />
-      ) : (
-        /* Chat Interface */
-        <KeyboardAvoidingView
-          style={styles.chatContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={90}>
-          {/* Messages List */}
-          <ScrollView
-            ref={messagesEndRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={styles.messagesContent}
-            onContentSizeChange={() =>
-              messagesEndRef.current?.scrollToEnd({ animated: true })
-            }>
-            {messages.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  No messages yet. Start chatting!
-                </Text>
+          ) : (
+            messages.map(message => (
+              <View key={message.id}>
+                {renderMessage({ item: message })}
               </View>
-            ) : (
-              messages.map(message => (
-                <View key={message.id}>
-                  {renderMessage({ item: message })}
-                </View>
-              ))
-            )}
-          </ScrollView>
+            ))
+          )}
+        </ScrollView>
 
-          {/* Message Input */}
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.messageInput}
-              placeholder="Type a message..."
-              placeholderTextColor="#8e8e93"
-              value={messageText}
-              onChangeText={setMessageText}
-              onSubmitEditing={handleSendMessage}
-              returnKeyType="send"
+        {/* Message Input - Always Visible */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.messageInput}
+            placeholder={"Type a message..."}
+            placeholderTextColor="#8e8e93"
+            value={messageText}
+            onChangeText={setMessageText}
+            onSubmitEditing={handleSendMessage}
+            returnKeyType="send"
+            editable={true}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              !messageText.trim() && styles.buttonDisabled
+            ]}
+            onPress={handleSendMessage}
+            disabled={!messageText.trim()}>
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* Peer List Modal */}
+      <Modal
+        visible={showPeerModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPeerModal(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nearby Devices</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowPeerModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Peer List */}
+            <FlatList
+              data={peers}
+              renderItem={renderPeer}
+              keyExtractor={item => item.deviceAddress}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    {isDiscovering 
+                      ? 'Scanning for nearby devices...' 
+                      : 'No peers found. Discovery is running in background.'}
+                  </Text>
+                </View>
+              }
+              contentContainerStyle={styles.modalListContainer}
             />
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSendMessage}
-              disabled={!messageText.trim()}>
-              <Text style={styles.sendButtonText}>Send</Text>
-            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      )}
-    </SafeAreaView>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
