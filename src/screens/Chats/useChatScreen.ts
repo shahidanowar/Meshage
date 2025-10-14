@@ -67,6 +67,8 @@ export const useChatScreen = () => {
   const [username, setUsername] = useState<string>('User');
   const [showPeerModal, setShowPeerModal] = useState<boolean>(false);
   const [deviceId, setDeviceId] = useState<string>('');
+  const [friendsList, setFriendsList] = useState<Set<string>>(new Set());
+  const [friendRequests, setFriendRequests] = useState<Array<{ persistentId: string; displayName: string; deviceAddress: string; timestamp: number }>>([]);
   const messagesEndRef = useRef<any>(null);
   const hasAutoStarted = useRef<boolean>(false);
   const connectionAttempts = useRef<Map<string, number>>(new Map());
@@ -130,6 +132,16 @@ export const useChatScreen = () => {
       }
       
       setDeviceId(savedDeviceId);
+      
+      // Load friends list
+      const friends = await StorageService.getFriends();
+      setFriendsList(new Set(friends.map(f => f.persistentId)));
+      console.log('Loaded friends:', friends.length);
+      
+      // Load friend requests
+      const requests = await StorageService.getFriendRequests();
+      setFriendRequests(requests);
+      console.log('Loaded friend requests:', requests.length);
       
       // Create device identifier: "username|deviceId"
       // Format: "Alice|abc-123-def" so other devices can parse it
@@ -327,8 +339,63 @@ export const useChatScreen = () => {
 
     const onMessageReceivedListener = MeshNetworkEvents.addListener(
       'onMessageReceived',
-      (data: { message: string; fromAddress: string; timestamp: number }) => {
+      async (data: { message: string; fromAddress: string; timestamp: number }) => {
         console.log('Message received:', data);
+        
+        // Check if it's a friend request
+        if (data.message.startsWith('FRIEND_REQUEST:')) {
+          const parts = data.message.split(':');
+          if (parts.length === 3) {
+            const requestPersistentId = parts[1];
+            const requestDisplayName = parts[2];
+            
+            // Check if already friends
+            const isAlreadyFriend = await StorageService.isFriend(requestPersistentId);
+            if (isAlreadyFriend) {
+              console.log('Friend request from existing friend, ignoring');
+              return;
+            }
+            
+            // Add to friend requests
+            const friendRequest = {
+              persistentId: requestPersistentId,
+              displayName: requestDisplayName,
+              deviceAddress: data.fromAddress,
+              timestamp: data.timestamp,
+            };
+            
+            await StorageService.addFriendRequest(friendRequest);
+            setFriendRequests(prev => {
+              const filtered = prev.filter(r => r.persistentId !== requestPersistentId);
+              return [...filtered, friendRequest];
+            });
+            
+            console.log('Friend request received from:', requestDisplayName);
+          }
+          return;
+        }
+        
+        // Check if it's a friend request acceptance
+        if (data.message.startsWith('FRIEND_ACCEPT:')) {
+          const parts = data.message.split(':');
+          if (parts.length === 3) {
+            const acceptPersistentId = parts[1];
+            const acceptDisplayName = parts[2];
+            
+            // Add as friend
+            await StorageService.addFriend({
+              persistentId: acceptPersistentId,
+              displayName: acceptDisplayName,
+              deviceAddress: data.fromAddress,
+            });
+            
+            setFriendsList(prev => new Set([...prev, acceptPersistentId]));
+            console.log('Friend request accepted by:', acceptDisplayName);
+          }
+          return;
+        }
+        
+        // Regular message
         const newMessage: Message = {
           id: `${data.timestamp}-${data.fromAddress}`,
           text: data.message,
@@ -494,6 +561,57 @@ export const useChatScreen = () => {
     }
   };
 
+  const handleAddFriend = async (peer: Peer) => {
+    if (!peer.persistentId) {
+      console.warn('Cannot add friend without persistent ID');
+      return;
+    }
+
+    // Send friend request to the peer
+    const friendRequestMessage = `FRIEND_REQUEST:${deviceId}:${username}`;
+    MeshNetwork.sendMessage(friendRequestMessage, peer.deviceAddress);
+    
+    // Auto-connect to peer
+    handleConnectToPeer(peer.deviceAddress);
+    
+    console.log('Friend request sent to:', peer.displayName);
+  };
+
+  const handleAcceptFriendRequest = async (request: { persistentId: string; displayName: string; deviceAddress: string }) => {
+    // Add to friends list
+    await StorageService.addFriend({
+      persistentId: request.persistentId,
+      displayName: request.displayName,
+      deviceAddress: request.deviceAddress,
+    });
+
+    // Update local friends list
+    setFriendsList(prev => new Set([...prev, request.persistentId]));
+    
+    // Remove from friend requests
+    await StorageService.removeFriendRequest(request.persistentId);
+    setFriendRequests(prev => prev.filter(r => r.persistentId !== request.persistentId));
+    
+    // Send acceptance message back
+    const acceptMessage = `FRIEND_ACCEPT:${deviceId}:${username}`;
+    MeshNetwork.sendMessage(acceptMessage, request.deviceAddress);
+    
+    console.log('Friend request accepted:', request.displayName);
+  };
+
+  const handleRejectFriendRequest = async (request: { persistentId: string; displayName: string }) => {
+    // Remove from friend requests
+    await StorageService.removeFriendRequest(request.persistentId);
+    setFriendRequests(prev => prev.filter(r => r.persistentId !== request.persistentId));
+    
+    console.log('Friend request rejected:', request.displayName);
+  };
+
+  const isFriend = (persistentId?: string): boolean => {
+    if (!persistentId) return false;
+    return friendsList.has(persistentId);
+  };
+
   return {
     // State
     status,
@@ -509,6 +627,8 @@ export const useChatScreen = () => {
     username,
     deviceId, // Persistent device ID for friends feature
     showPeerModal,
+    friendsList,
+    friendRequests,
     
     // State setters
     setMessageText,
@@ -521,6 +641,10 @@ export const useChatScreen = () => {
     handleConnectToPeer,
     handleDisconnect,
     handleSendMessage,
+    handleAddFriend,
+    handleAcceptFriendRequest,
+    handleRejectFriendRequest,
     getPeerStatusText,
+    isFriend,
   };
 };

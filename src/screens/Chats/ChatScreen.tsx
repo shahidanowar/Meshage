@@ -25,20 +25,31 @@ const ChatScreen = () => {
     messagesEndRef,
     username,
     showPeerModal,
+    friendRequests,
     setMessageText,
     setShowPeerModal,
     handleConnectToPeer,
     handleSendMessage,
+    handleAddFriend,
+    handleAcceptFriendRequest,
+    handleRejectFriendRequest,
     getPeerStatusText,
+    isFriend,
   } = useChatScreen();
+
+  const [showFriendRequestsModal, setShowFriendRequestsModal] = React.useState(false);
 
   const renderPeer = ({ item }: { item: any }) => {
     const isConnectedPeer = connectedPeers.includes(item.deviceAddress);
+    const isAlreadyFriend = isFriend(item.persistentId);
     
     return (
       <View style={styles.peerItem}>
         <View style={styles.peerInfo}>
-          <Text style={styles.peerName}>{item.deviceName}</Text>
+          <Text style={styles.peerName}>
+            {item.displayName || item.deviceName}
+            {isAlreadyFriend && ' ⭐'}
+          </Text>
           <Text style={styles.peerAddress}>{item.deviceAddress}</Text>
           <Text style={[
             styles.peerStatus,
@@ -47,16 +58,20 @@ const ChatScreen = () => {
             {isConnectedPeer ? '✓ Connected' : getPeerStatusText(item.status)}
           </Text>
         </View>
-        {!isConnectedPeer && item.status === 3 && (
+        {!isAlreadyFriend && item.persistentId ? (
           <TouchableOpacity
-            style={styles.connectButton}
+            style={styles.addFriendButton}
             onPress={() => {
-              handleConnectToPeer(item.deviceAddress);
+              handleAddFriend(item);
               setShowPeerModal(false);
             }}>
-            <Text style={styles.connectButtonText}>Connect</Text>
+            <Text style={styles.addFriendButtonText}>Add Friend</Text>
           </TouchableOpacity>
-        )}
+        ) : isAlreadyFriend ? (
+          <View style={styles.friendBadge}>
+            <Text style={styles.friendBadgeText}>Friend</Text>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -86,14 +101,27 @@ const ChatScreen = () => {
         <View style={styles.headerTop}>
           <Text style={styles.username}>{username}</Text>
           
-          {/* Peer List Button */}
-          <TouchableOpacity
-            style={styles.peerListButton}
-            onPress={() => setShowPeerModal(true)}>
-            <Text style={styles.peerListButtonText}>
-              👥 {peers.length}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            {/* Friend Requests Button */}
+            {friendRequests.length > 0 && (
+              <TouchableOpacity
+                style={styles.friendRequestButton}
+                onPress={() => setShowFriendRequestsModal(true)}>
+                <Text style={styles.friendRequestButtonText}>
+                  🤝 {friendRequests.length}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {/* Peer List Button */}
+            <TouchableOpacity
+              style={styles.peerListButton}
+              onPress={() => setShowPeerModal(true)}>
+              <Text style={styles.peerListButtonText}>
+                👥 {peers.length}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
         <Text style={styles.status}>status: {status}</Text>
@@ -180,6 +208,69 @@ const ChatScreen = () => {
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
                     No peers found nearby. Auto-discovery is running...
+                  </Text>
+                </View>
+              }
+              contentContainerStyle={styles.modalListContainer}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Friend Requests Modal */}
+      <Modal
+        visible={showFriendRequestsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowFriendRequestsModal(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Friend Requests</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowFriendRequestsModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Friend Requests List */}
+            <FlatList
+              data={friendRequests}
+              renderItem={({ item }) => (
+                <View style={styles.friendRequestItem}>
+                  <View style={styles.peerInfo}>
+                    <Text style={styles.peerName}>{item.displayName}</Text>
+                    <Text style={styles.peerAddress}>ID: {item.persistentId}</Text>
+                    <Text style={styles.peerStatus}>
+                      {new Date(item.timestamp).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.friendRequestButtons}>
+                    <TouchableOpacity
+                      style={styles.acceptButton}
+                      onPress={() => {
+                        handleAcceptFriendRequest(item);
+                        setShowFriendRequestsModal(false);
+                      }}>
+                      <Text style={styles.acceptButtonText}>Accept</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => {
+                        handleRejectFriendRequest(item);
+                      }}>
+                      <Text style={styles.rejectButtonText}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              keyExtractor={item => item.persistentId}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    No friend requests
                   </Text>
                 </View>
               }
