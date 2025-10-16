@@ -60,20 +60,25 @@ const PersonalChatScreen = () => {
     const onMessageReceivedListener = MeshNetworkEvents.addListener(
       'onMessageReceived',
       (data: { message: string; fromAddress: string; timestamp: number }) => {
-        console.log('PersonalChat - Message received:', data);
+        console.log('PersonalChat - Message received:', {
+          message: data.message.substring(0, 50) + '...',
+          fromAddress: data.fromAddress,
+          expectedFriendId: friendId,
+        });
         
         // Check if it's a direct message
         if (data.message.startsWith('DIRECT_MSG:')) {
           const parts = data.message.split(':', 3);
+          console.log('PersonalChat - Parsing DIRECT_MSG, parts:', parts.length);
+          
           if (parts.length === 3) {
             const targetFriendId = parts[1];
             const messageContent = parts[2];
             
-            // Show message if:
-            // 1. It's FROM this friend (data.fromAddress === friendId)
-            // 2. OR it's TO this friend (targetFriendId === friendId) and we sent it
+            console.log('PersonalChat - Target:', targetFriendId, 'From:', data.fromAddress, 'Expected:', friendId);
+            
+            // Show message if it's FROM this friend
             if (data.fromAddress === friendId) {
-              // Message from this friend
               const newMessage: Message = {
                 id: `${data.timestamp}-${data.fromAddress}`,
                 text: messageContent,
@@ -82,7 +87,9 @@ const PersonalChatScreen = () => {
                 isSent: false,
               };
               setMessages(prev => [...prev, newMessage]);
-              console.log('PersonalChat - Added direct message from friend:', newMessage);
+              console.log('✅ PersonalChat - Added direct message from friend:', messageContent);
+            } else {
+              console.log('❌ PersonalChat - Message not from this friend, ignoring');
             }
           }
           return;
@@ -138,13 +145,10 @@ const PersonalChatScreen = () => {
     // Add DIRECT_MSG prefix to indicate this is a private message
     const directMessage = `DIRECT_MSG:${friendId}:${messageText}`;
     
-    if (friendAddress) {
-      MeshNetwork.sendMessage(directMessage, friendAddress);
-      console.log('PersonalChat - Sending direct message to:', friendAddress);
-    } else {
-      // Fallback to broadcast if no address
-      MeshNetwork.sendMessage(directMessage, null);
-    }
+    // Always broadcast direct messages to ensure delivery
+    // The receiver will filter and only show messages meant for them
+    MeshNetwork.sendMessage(directMessage, null);
+    console.log('PersonalChat - Broadcasting direct message to friend:', friendId);
 
     setMessageText('');
 
