@@ -20,6 +20,11 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
   peerListButton: {
     backgroundColor: '#007aff',
     paddingVertical: 8,
@@ -29,6 +34,19 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   peerListButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  friendRequestButton: {
+    backgroundColor: '#34c759',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  friendRequestButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
@@ -173,6 +191,50 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  addFriendButton: {
+    backgroundColor: '#34c759',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  addFriendButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  friendBadge: {
+    backgroundColor: '#ffd60a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  friendBadgeText: {
+    color: '#1c1c1e',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pendingBadge: {
+    backgroundColor: '#8e8e93',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  incomingBadge: {
+    backgroundColor: '#ff9500',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  incomingBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   emptyContainer: {
     marginTop: 40,
     alignItems: 'center',
@@ -295,5 +357,41 @@ export const styles = StyleSheet.create({
   modalListContainer: {
     paddingHorizontal: 20,
     paddingTop: 10,
+  },
+  friendRequestItem: {
+    flexDirection: 'row',
+    backgroundColor: '#2c2c2e',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  friendRequestButtons: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  acceptButton: {
+    backgroundColor: '#34c759',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  acceptButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  rejectButton: {
+    backgroundColor: '#ff3b30',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  rejectButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
