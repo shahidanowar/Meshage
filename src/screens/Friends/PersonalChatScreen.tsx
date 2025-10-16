@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeModules, NativeEventEmitter } from 'react-native';
+import { StorageService } from '../../utils/storage';
 
 const { MeshNetwork } = NativeModules;
 const MeshNetworkEvents = new NativeEventEmitter(MeshNetwork);
@@ -41,7 +42,17 @@ const PersonalChatScreen = () => {
   const [messageText, setMessageText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [myDeviceId, setMyDeviceId] = useState<string>('');
   const messagesEndRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Load my device ID
+    const loadDeviceId = async () => {
+      const deviceId = await StorageService.getDeviceId();
+      setMyDeviceId(deviceId);
+    };
+    loadDeviceId();
+  }, []);
 
   useEffect(() => {
     // Check if friend is currently connected
@@ -72,13 +83,20 @@ const PersonalChatScreen = () => {
           console.log('PersonalChat - Parsing DIRECT_MSG, parts:', parts.length);
           
           if (parts.length === 3) {
-            const targetFriendId = parts[1];
+            const targetPersistentId = parts[1];
             const messageContent = parts[2];
             
-            console.log('PersonalChat - Target:', targetFriendId, 'From:', data.fromAddress, 'Expected:', friendId);
+            console.log('PersonalChat - Message details:', {
+              targetPersistentId,
+              myDeviceId,
+              friendId,
+              messageContent: messageContent.substring(0, 20)
+            });
             
-            // Show message if it's FROM this friend
-            if (data.fromAddress === friendId) {
+            // Show message if it's meant for ME and from MY FRIEND
+            // The sender puts MY device ID as the target
+            if (targetPersistentId === myDeviceId) {
+              // This message is for me, add it to the chat
               const newMessage: Message = {
                 id: `${data.timestamp}-${data.fromAddress}`,
                 text: messageContent,
@@ -87,9 +105,9 @@ const PersonalChatScreen = () => {
                 isSent: false,
               };
               setMessages(prev => [...prev, newMessage]);
-              console.log('✅ PersonalChat - Added direct message from friend:', messageContent);
+              console.log('✅ PersonalChat - Received message meant for me:', messageContent);
             } else {
-              console.log('❌ PersonalChat - Message not from this friend, ignoring');
+              console.log('❌ PersonalChat - Message not meant for me (target:', targetPersistentId, 'me:', myDeviceId, ')');
             }
           }
           return;
