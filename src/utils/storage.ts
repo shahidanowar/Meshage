@@ -1,23 +1,5 @@
-// Simple in-memory storage for username and device ID
-// For production, replace with AsyncStorage for persistence across app restarts
-
-class InMemoryStorage {
-  private storage: Map<string, string> = new Map();
-
-  async setItem(key: string, value: string): Promise<void> {
-    this.storage.set(key, value);
-  }
-
-  async getItem(key: string): Promise<string | null> {
-    return this.storage.get(key) || null;
-  }
-
-  async removeItem(key: string): Promise<void> {
-    this.storage.delete(key);
-  }
-}
-
-const storage = new InMemoryStorage();
+// AsyncStorage for persistent storage across app restarts
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEYS = {
   USERNAME: '@meshage_username',
@@ -55,9 +37,9 @@ export const StorageService = {
   // Save username
   saveUsername: async (username: string): Promise<void> => {
     try {
-      await storage.setItem(STORAGE_KEYS.USERNAME, username);
+      await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, username);
       // Mark onboarding as complete when username is saved
-      await storage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, 'true');
+      await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, 'true');
     } catch (error) {
       console.error('Error saving username:', error);
     }
@@ -66,7 +48,7 @@ export const StorageService = {
   // Get username
   getUsername: async (): Promise<string | null> => {
     try {
-      return await storage.getItem(STORAGE_KEYS.USERNAME);
+      return await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
     } catch (error) {
       console.error('Error getting username:', error);
       return null;
@@ -76,7 +58,7 @@ export const StorageService = {
   // Clear username
   clearUsername: async (): Promise<void> => {
     try {
-      await storage.removeItem(STORAGE_KEYS.USERNAME);
+      await AsyncStorage.removeItem(STORAGE_KEYS.USERNAME);
     } catch (error) {
       console.error('Error clearing username:', error);
     }
@@ -85,12 +67,12 @@ export const StorageService = {
   // Get or create device ID (persistent unique identifier)
   getDeviceId: async (): Promise<string> => {
     try {
-      let deviceId = await storage.getItem(STORAGE_KEYS.DEVICE_ID);
+      let deviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
       
       // Generate new ID if doesn't exist
       if (!deviceId) {
         deviceId = generateDeviceId();
-        await storage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+        await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
         console.log('Generated new device ID:', deviceId);
       } else {
         console.log('Retrieved existing device ID:', deviceId);
@@ -107,7 +89,7 @@ export const StorageService = {
   // Get device ID without creating (returns null if doesn't exist)
   getExistingDeviceId: async (): Promise<string | null> => {
     try {
-      return await storage.getItem(STORAGE_KEYS.DEVICE_ID);
+      return await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
     } catch (error) {
       console.error('Error getting existing device ID:', error);
       return null;
@@ -117,7 +99,7 @@ export const StorageService = {
   // Friends management
   getFriends: async (): Promise<Friend[]> => {
     try {
-      const friendsJson = await storage.getItem(STORAGE_KEYS.FRIENDS);
+      const friendsJson = await AsyncStorage.getItem(STORAGE_KEYS.FRIENDS);
       if (!friendsJson) return [];
       return JSON.parse(friendsJson);
     } catch (error) {
@@ -141,7 +123,7 @@ export const StorageService = {
         friends.push({ ...friend, lastSeen: Date.now() });
       }
       
-      await storage.setItem(STORAGE_KEYS.FRIENDS, JSON.stringify(friends));
+      await AsyncStorage.setItem(STORAGE_KEYS.FRIENDS, JSON.stringify(friends));
       console.log('Friend added/updated:', friend.displayName);
     } catch (error) {
       console.error('Error adding friend:', error);
@@ -152,7 +134,7 @@ export const StorageService = {
     try {
       const friends = await StorageService.getFriends();
       const updatedFriends = friends.filter(f => f.persistentId !== persistentId);
-      await storage.setItem(STORAGE_KEYS.FRIENDS, JSON.stringify(updatedFriends));
+      await AsyncStorage.setItem(STORAGE_KEYS.FRIENDS, JSON.stringify(updatedFriends));
       console.log('Friend removed:', persistentId);
     } catch (error) {
       console.error('Error removing friend:', error);
@@ -172,7 +154,7 @@ export const StorageService = {
   // Friend Requests management
   getFriendRequests: async (): Promise<FriendRequest[]> => {
     try {
-      const requestsJson = await storage.getItem(STORAGE_KEYS.FRIEND_REQUESTS);
+      const requestsJson = await AsyncStorage.getItem(STORAGE_KEYS.FRIEND_REQUESTS);
       if (!requestsJson) return [];
       return JSON.parse(requestsJson);
     } catch (error) {
@@ -196,7 +178,7 @@ export const StorageService = {
         requests.push(request);
       }
       
-      await storage.setItem(STORAGE_KEYS.FRIEND_REQUESTS, JSON.stringify(requests));
+      await AsyncStorage.setItem(STORAGE_KEYS.FRIEND_REQUESTS, JSON.stringify(requests));
       console.log('Friend request added:', request.displayName);
     } catch (error) {
       console.error('Error adding friend request:', error);
@@ -207,7 +189,7 @@ export const StorageService = {
     try {
       const requests = await StorageService.getFriendRequests();
       const updatedRequests = requests.filter(r => r.persistentId !== persistentId);
-      await storage.setItem(STORAGE_KEYS.FRIEND_REQUESTS, JSON.stringify(updatedRequests));
+      await AsyncStorage.setItem(STORAGE_KEYS.FRIEND_REQUESTS, JSON.stringify(updatedRequests));
       console.log('Friend request removed:', persistentId);
     } catch (error) {
       console.error('Error removing friend request:', error);
@@ -217,8 +199,8 @@ export const StorageService = {
   // Onboarding status
   isOnboardingComplete: async (): Promise<boolean> => {
     try {
-      const isComplete = await storage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
-      const username = await storage.getItem(STORAGE_KEYS.USERNAME);
+      const isComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
+      const username = await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
       // Check both flags to be safe
       return isComplete === 'true' && username !== null;
     } catch (error) {

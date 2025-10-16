@@ -377,4 +377,14 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
     fun removeListeners(count: Int) {
         // Required for React Native's Event Emitter
     }
+
+    @ReactMethod
+    fun getLocalEndpointId(promise: Promise) {
+        try {
+            // Return the local endpoint ID (may be empty if not connected yet)
+            promise.resolve(localEndpointId)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get local endpoint ID", e)
+        }
+    }
 }

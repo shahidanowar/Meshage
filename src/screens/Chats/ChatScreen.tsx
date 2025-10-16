@@ -63,7 +63,7 @@ const ChatScreen = () => {
             {isConnectedPeer ? '✓ Connected' : getPeerStatusText(item.status)}
           </Text>
         </View>
-        {!isAlreadyFriend && !hasOutgoingRequest && !hasIncomingRequest && item.persistentId ? (
+        {!isAlreadyFriend && !hasOutgoingRequest && !hasIncomingRequest && item.persistentId && isConnectedPeer ? (
           <TouchableOpacity
             style={styles.addFriendButton}
             onPress={() => {

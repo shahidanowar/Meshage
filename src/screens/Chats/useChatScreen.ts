@@ -312,7 +312,8 @@ export const useChatScreen = () => {
 
     const onPeerConnectedListener = MeshNetworkEvents.addListener(
       'onPeerConnected',
-      (address: string) => {
+      (data: { address: string } | string) => {
+        const address = typeof data === 'string' ? data : data.address;
         console.log('Peer connected:', address);
         setConnectedPeers(prev => [...new Set([...prev, address])]);
         setStatus(`Peer connected: ${address}`);
@@ -330,7 +331,8 @@ export const useChatScreen = () => {
 
     const onPeerDisconnectedListener = MeshNetworkEvents.addListener(
       'onPeerDisconnected',
-      (address: string) => {
+      (data: { address: string } | string) => {
+        const address = typeof data === 'string' ? data : data.address;
         console.log('Peer disconnected:', address);
         setConnectedPeers(prev => prev.filter(p => p !== address));
         setStatus(`Peer disconnected: ${address}`);
