@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,19 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { NativeModules, NativeEventEmitter } from 'react-native';
+import { FriendsStackParamList } from '../../navigation/MainTabNavigator';
 import { StorageService, Friend } from '../../utils/storage';
 
+const { MeshNetwork } = NativeModules;
+const MeshNetworkEvents = new NativeEventEmitter(MeshNetwork);
+
+type NavigationProp = NativeStackNavigationProp<FriendsStackParamList, 'FriendsList'>;
+
 const FriendsScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -26,6 +35,24 @@ const FriendsScreen = () => {
       loadFriends();
     }, [])
   );
+
+  // Listen for friend acceptance messages to auto-refresh
+  useEffect(() => {
+    const onMessageReceivedListener = MeshNetworkEvents.addListener(
+      'onMessageReceived',
+      async (data: { message: string; fromAddress: string; timestamp: number }) => {
+        // If we receive a FRIEND_ACCEPT, reload friends list
+        if (data.message.startsWith('FRIEND_ACCEPT:')) {
+          console.log('FriendsScreen - Friend accepted, reloading list');
+          await loadFriends();
+        }
+      }
+    );
+
+    return () => {
+      onMessageReceivedListener.remove();
+    };
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -51,24 +78,45 @@ const FriendsScreen = () => {
     );
   };
 
+  const handleOpenChat = (friend: Friend) => {
+    navigation.navigate('PersonalChat', {
+      friendId: friend.persistentId,
+      friendName: friend.displayName,
+      friendAddress: friend.deviceAddress,
+    });
+  };
+
   const renderFriend = ({ item }: { item: Friend }) => {
     const lastSeenText = item.lastSeen
       ? new Date(item.lastSeen).toLocaleDateString()
       : 'Never';
 
     return (
-      <View style={styles.friendItem}>
+      <TouchableOpacity
+        style={styles.friendItem}
+        onPress={() => handleOpenChat(item)}
+        activeOpacity={0.7}>
         <View style={styles.friendInfo}>
           <Text style={styles.friendName}>⭐ {item.displayName}</Text>
           <Text style={styles.friendId}>ID: {item.persistentId}</Text>
           <Text style={styles.lastSeen}>Added: {lastSeenText}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={() => handleRemoveFriend(item)}>
-          <Text style={styles.removeButtonText}>Remove</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.friendActions}>
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() => handleOpenChat(item)}>
+            <Text style={styles.chatButtonText}>💬</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleRemoveFriend(item);
+            }}>
+            <Text style={styles.removeButtonText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -155,6 +203,20 @@ const styles = StyleSheet.create({
   lastSeen: {
     fontSize: 12,
     color: '#8e8e93',
+  },
+  friendActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  chatButton: {
+    backgroundColor: '#007aff',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  chatButtonText: {
+    fontSize: 20,
   },
   removeButton: {
     backgroundColor: '#ff3b30',

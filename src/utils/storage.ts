@@ -39,6 +39,7 @@ export interface FriendRequest {
   displayName: string;
   deviceAddress: string;
   timestamp: number;
+  type?: 'incoming' | 'outgoing'; // Track if we sent or received the request
 }
 
 // Generate a unique device ID (UUID v4)

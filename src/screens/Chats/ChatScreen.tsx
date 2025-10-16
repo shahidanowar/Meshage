@@ -43,6 +43,11 @@ const ChatScreen = () => {
     const isConnectedPeer = connectedPeers.includes(item.deviceAddress);
     const isAlreadyFriend = isFriend(item.persistentId);
     
+    // Check if there's a pending request
+    const pendingRequest = friendRequests.find(r => r.persistentId === item.persistentId);
+    const hasOutgoingRequest = pendingRequest?.type === 'outgoing';
+    const hasIncomingRequest = pendingRequest?.type === 'incoming';
+    
     return (
       <View style={styles.peerItem}>
         <View style={styles.peerInfo}>
@@ -58,7 +63,7 @@ const ChatScreen = () => {
             {isConnectedPeer ? '✓ Connected' : getPeerStatusText(item.status)}
           </Text>
         </View>
-        {!isAlreadyFriend && item.persistentId ? (
+        {!isAlreadyFriend && !hasOutgoingRequest && !hasIncomingRequest && item.persistentId ? (
           <TouchableOpacity
             style={styles.addFriendButton}
             onPress={() => {
@@ -67,6 +72,14 @@ const ChatScreen = () => {
             }}>
             <Text style={styles.addFriendButtonText}>Add Friend</Text>
           </TouchableOpacity>
+        ) : hasOutgoingRequest ? (
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingBadgeText}>Request Sent</Text>
+          </View>
+        ) : hasIncomingRequest ? (
+          <View style={styles.incomingBadge}>
+            <Text style={styles.incomingBadgeText}>Respond in 🤝</Text>
+          </View>
         ) : isAlreadyFriend ? (
           <View style={styles.friendBadge}>
             <Text style={styles.friendBadgeText}>Friend</Text>
@@ -102,13 +115,13 @@ const ChatScreen = () => {
           <Text style={styles.username}>{username}</Text>
           
           <View style={styles.headerButtons}>
-            {/* Friend Requests Button */}
-            {friendRequests.length > 0 && (
+            {/* Friend Requests Button - Only show incoming requests count */}
+            {friendRequests.filter(r => r.type === 'incoming').length > 0 && (
               <TouchableOpacity
                 style={styles.friendRequestButton}
                 onPress={() => setShowFriendRequestsModal(true)}>
                 <Text style={styles.friendRequestButtonText}>
-                  🤝 {friendRequests.length}
+                  🤝 {friendRequests.filter(r => r.type === 'incoming').length}
                 </Text>
               </TouchableOpacity>
             )}
@@ -235,9 +248,9 @@ const ChatScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Friend Requests List */}
+            {/* Friend Requests List - Only show incoming requests */}
             <FlatList
-              data={friendRequests}
+              data={friendRequests.filter(r => r.type === 'incoming')}
               renderItem={({ item }) => (
                 <View style={styles.friendRequestItem}>
                   <View style={styles.peerInfo}>
