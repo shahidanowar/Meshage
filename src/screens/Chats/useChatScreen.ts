@@ -452,8 +452,89 @@ export const useChatScreen = () => {
         
         // Check if it's a direct message (personal chat)
         if (data.message.startsWith('DIRECT_MSG:')) {
+          console.log('Chats - Direct message detected');
+          
+          // Parse and save direct message to storage
+          const parts = data.message.split(':', 3);
+          
+          if (parts.length === 3) {
+            const targetPersistentId = parts[1];
+            const messageContent = parts[2];
+            
+            console.log('Chats - Direct message details:', {
+              targetPersistentId,
+              myPersistentId: persistentId,
+              fromAddress: data.fromAddress,
+              messagePreview: messageContent.substring(0, 20)
+            });
+            
+            // Get current persistent ID from storage (in case state is stale)
+            const currentPersistentId = await StorageService.getPersistentId();
+            
+            // Check if this message is for me
+            if (targetPersistentId === currentPersistentId) {
+              console.log('Chats - Received direct message for me, saving to storage');
+              
+              // Parse sender info from device name format "Name|PersistentID"
+              let senderPersistentId: string | undefined;
+              let senderName = data.senderName || 'Unknown';
+              
+              // Try to find sender in current peers list
+              const sender = peers.find(p => p.deviceAddress === data.fromAddress);
+              if (sender?.persistentId) {
+                senderPersistentId = sender.persistentId;
+                senderName = sender.displayName || senderName;
+                console.log('Chats - Found sender in peers:', senderName, senderPersistentId);
+              } else {
+                // Try to extract from senderName if it has format "Name|ID"
+                if (data.senderName && data.senderName.includes('|')) {
+                  const nameParts = data.senderName.split('|');
+                  if (nameParts.length === 2) {
+                    senderName = nameParts[0];
+                    senderPersistentId = nameParts[1];
+                    console.log('Chats - Extracted sender from message:', senderName, senderPersistentId);
+                  }
+                }
+              }
+              
+              // Save message to chat history
+              if (senderPersistentId) {
+                const newMessage = {
+                  id: `${data.timestamp}-${data.fromAddress}`,
+                  text: messageContent,
+                  fromAddress: data.fromAddress,
+                  senderName: senderName,
+                  timestamp: data.timestamp,
+                  isSent: false,
+                };
+                
+                // Save to storage for this friend
+                StorageService.getChatHistory(senderPersistentId).then(history => {
+                  // Check for duplicate message
+                  const isDuplicate = history.some(msg => msg.id === newMessage.id);
+                  if (isDuplicate) {
+                    console.log(`Chats - Duplicate message detected from ${senderName}, skipping save`);
+                    return;
+                  }
+                  
+                  const updatedHistory = [...history, newMessage];
+                  StorageService.saveChatHistory(senderPersistentId, updatedHistory);
+                  console.log(`✅ Saved direct message from ${senderName} (${senderPersistentId}) to storage`);
+                });
+              } else {
+                console.log('⚠️ Could not determine sender persistent ID, message not saved');
+                console.log('⚠️ Debug info:', { 
+                  fromAddress: data.fromAddress, 
+                  senderName: data.senderName,
+                  peersCount: peers.length 
+                });
+              }
+            } else {
+              console.log('Chats - Direct message not for me, ignoring');
+            }
+          }
+          
           // Don't show direct messages in the broadcast chat
-          console.log('Chats - Ignoring direct message (shown in personal chat)');
           return;
         }
         

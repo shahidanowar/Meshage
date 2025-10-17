@@ -138,6 +138,13 @@ export const usePersonalChat = ({ friendId, friendName, friendAddress }: UsePers
                 isSent: false,
               };
               setMessages(prev => {
+                // Check for duplicate message (same ID)
+                const isDuplicate = prev.some(msg => msg.id === newMessage.id);
+                if (isDuplicate) {
+                  console.log('PersonalChat - Duplicate message detected, skipping');
+                  return prev;
+                }
+                
                 const updated = [...prev, newMessage];
                 // Save to storage
                 StorageService.saveChatHistory(friendId, updated);
@@ -227,8 +234,11 @@ export const usePersonalChat = ({ friendId, friendName, friendAddress }: UsePers
     // Add DIRECT_MSG prefix to indicate this is a private message
     const directMessage = `DIRECT_MSG:${friendId}:${messageText}`;
     console.log("usePersonalChat: directMessage: ", directMessage)
+    
     // Always broadcast direct messages to ensure delivery
-    MeshNetwork.sendMessage(directMessage, myUsername, null);
+    // Include persistent ID in sender name so receiver can identify sender
+    const senderIdentifier = `${myUsername}|${myPersistentId}`;
+    MeshNetwork.sendMessage(directMessage, senderIdentifier, null);
     console.log('PersonalChat - Broadcasting direct message to friend:', friendId);
 
     setMessageText('');
