@@ -8,7 +8,7 @@ const { MeshNetwork } = NativeModules;
 
 const SettingsScreen = () => {
     const [username, setUsername] = useState<string>('');
-    const [deviceId, setDeviceId] = useState<string>('');
+    const [persistentId, setPersistentId] = useState<string>('');
     const [endpointId, setEndpointId] = useState<string>('');
     const [deviceIdentifier, setDeviceIdentifier] = useState<string>('');
     const [friendsCount, setFriendsCount] = useState<number>(0);
@@ -27,9 +27,9 @@ const SettingsScreen = () => {
             const savedUsername = await StorageService.getUsername();
             setUsername(savedUsername || 'User');
             
-            // Load device ID
-            const savedDeviceId = await StorageService.getDeviceId();
-            setDeviceId(savedDeviceId);
+            // Load persistent ID
+            const savedPersistentId = await StorageService.getPersistentId();
+            setPersistentId(savedPersistentId);
             
             // Load friends count
             const friends = await StorageService.getFriends();
@@ -39,8 +39,8 @@ const SettingsScreen = () => {
             const requests = await StorageService.getFriendRequests();
             setFriendRequestsCount(requests.length);
             
-            // Create device identifier (username|deviceId)
-            const identifier = `${savedUsername || 'User'}|${savedDeviceId}`;
+            // Create device identifier (username|persistentId)
+            const identifier = `${savedUsername || 'User'}|${savedPersistentId}`;
             setDeviceIdentifier(identifier);
             
             // Load endpoint ID from native module
@@ -112,7 +112,7 @@ const SettingsScreen = () => {
                         </Text>
                         <View style={styles.qrContainer}>
                             <QRCode 
-                                value={deviceId} 
+                                value={persistentId} 
                                 size={200}
                                 backgroundColor="white"
                             />
@@ -135,7 +135,7 @@ const SettingsScreen = () => {
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Full UUID:</Text>
                                 <Text style={styles.infoValueTiny} numberOfLines={2}>
-                                    {deviceId}
+                                    {persistentId}
                                 </Text>
                             </View>
                             

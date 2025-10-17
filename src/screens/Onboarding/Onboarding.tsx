@@ -17,7 +17,7 @@ const Onboarding = () => {
             return;
         }
         
-        // Save username
+        // Save username and set onboarding completed or not
         await StorageService.saveUsername(name.trim());
         
         // Navigate to main screen

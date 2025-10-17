@@ -8,19 +8,19 @@ import Onboarding from '../screens/Onboarding/Onboarding';
 import { MainTabNavigator } from './MainTabNavigator'; // Assuming your tab navigator is in this file
 import { StorageService } from '../utils/storage';
 
+export type RootStackParamList = {
+    Auth: undefined; // AuthStackNavigator
+    Main: undefined; // MainTabNavigator
+};
+
 // Define types for navigation (optional but recommended in TS)
 export type AuthStackParamList = {
     Onboarding: undefined
     Chats: undefined;
 };
 
-export type RootStackParamList = {
-    Auth: undefined; // AuthStackNavigator
-    Main: undefined; // MainTabNavigator
-};
-
-const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
 const AuthNavigator = () => (
     <AuthStack.Navigator screenOptions={{ headerShown: true }}>

@@ -42,16 +42,16 @@ const PersonalChatScreen = () => {
   const [messageText, setMessageText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
-  const [myDeviceId, setMyDeviceId] = useState<string>('');
+  const [myPersistentId, setMyPersistentId] = useState<string>('');
   const messagesEndRef = useRef<any>(null);
 
   useEffect(() => {
-    // Load my device ID
-    const loadDeviceId = async () => {
-      const deviceId = await StorageService.getDeviceId();
-      setMyDeviceId(deviceId);
+    // Load my persistent ID
+    const loadPersistentId = async () => {
+      const persistentId = await StorageService.getPersistentId();
+      setMyPersistentId(persistentId);
     };
-    loadDeviceId();
+    loadPersistentId();
   }, []);
 
   useEffect(() => {
@@ -88,14 +88,14 @@ const PersonalChatScreen = () => {
             
             console.log('PersonalChat - Message details:', {
               targetPersistentId,
-              myDeviceId,
+              myPersistentId,
               friendId,
               messageContent: messageContent.substring(0, 20)
             });
             
             // Show message if it's meant for ME and from MY FRIEND
-            // The sender puts MY device ID as the target
-            if (targetPersistentId === myDeviceId) {
+            // The sender puts MY persistent ID as the target
+            if (targetPersistentId === myPersistentId) {
               // This message is for me, add it to the chat
               const newMessage: Message = {
                 id: `${data.timestamp}-${data.fromAddress}`,
@@ -107,7 +107,7 @@ const PersonalChatScreen = () => {
               setMessages(prev => [...prev, newMessage]);
               console.log('✅ PersonalChat - Received message meant for me:', messageContent);
             } else {
-              console.log('❌ PersonalChat - Message not meant for me (target:', targetPersistentId, 'me:', myDeviceId, ')');
+              console.log('❌ PersonalChat - Message not meant for me (target:', targetPersistentId, 'me:', myPersistentId, ')');
             }
           }
           return;
