@@ -1,5 +1,9 @@
 // AsyncStorage for persistent storage across app restarts
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Friend, FriendRequest } from '../types';
+
+// Re-export types for backward compatibility
+export type { Friend, FriendRequest };
 
 const STORAGE_KEYS = {
   USERNAME: '@meshage_username',
@@ -7,22 +11,8 @@ const STORAGE_KEYS = {
   FRIENDS: '@meshage_friends',
   FRIEND_REQUESTS: '@meshage_friend_requests',
   ONBOARDING_COMPLETE: '@meshage_onboarding_complete',
+  CHAT_HISTORY_PREFIX: '@meshage_chat_', // Prefix for individual chat histories
 };
-
-export interface Friend {
-  persistentId: string;
-  displayName: string;
-  deviceAddress?: string;
-  lastSeen?: number;
-}
-
-export interface FriendRequest {
-  persistentId: string;
-  displayName: string;
-  deviceAddress: string;
-  timestamp: number;
-  type?: 'incoming' | 'outgoing'; // Track if we sent or received the request
-}
 
 // Generate a unique persistent ID (UUID v4)
 const generatePersistentId = (): string => {
@@ -197,6 +187,49 @@ export const StorageService = {
     } catch (error) {
       console.error('Error checking onboarding status:', error);
       return false;
+    }
+  },
+
+  // Chat History management (per friend)
+  getChatHistory: async (friendId: string): Promise<any[]> => {
+    try {
+      const key = `${STORAGE_KEYS.CHAT_HISTORY_PREFIX}${friendId}`;
+      const historyJson = await AsyncStorage.getItem(key);
+      if (!historyJson) return [];
+      return JSON.parse(historyJson);
+    } catch (error) {
+      console.error('Error getting chat history:', error);
+      return [];
+    }
+  },
+
+  saveChatHistory: async (friendId: string, messages: any[]): Promise<void> => {
+    try {
+      const key = `${STORAGE_KEYS.CHAT_HISTORY_PREFIX}${friendId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(messages));
+      console.log(`Chat history saved for friend: ${friendId} (${messages.length} messages)`);
+    } catch (error) {
+      console.error('Error saving chat history:', error);
+    }
+  },
+
+  addMessageToHistory: async (friendId: string, message: any): Promise<void> => {
+    try {
+      const history = await StorageService.getChatHistory(friendId);
+      history.push(message);
+      await StorageService.saveChatHistory(friendId, history);
+    } catch (error) {
+      console.error('Error adding message to history:', error);
+    }
+  },
+
+  clearChatHistory: async (friendId: string): Promise<void> => {
+    try {
+      const key = `${STORAGE_KEYS.CHAT_HISTORY_PREFIX}${friendId}`;
+      await AsyncStorage.removeItem(key);
+      console.log(`Chat history cleared for friend: ${friendId}`);
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
     }
   },
 };
