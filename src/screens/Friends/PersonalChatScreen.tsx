@@ -42,9 +42,9 @@ const PersonalChatScreen = () => {
         styles.messageItem,
         item.isSent ? styles.sentMessage : styles.receivedMessage,
       ]}>
-      <Text style={styles.messageSender}>
+      {/* <Text style={styles.messageSender}>
         {item.isSent ? 'You' : friendName}
-      </Text>
+      </Text> */}
       <Text style={styles.messageText}>{item.text}</Text>
       <Text style={styles.messageTime}>
         {new Date(item.timestamp).toLocaleTimeString()}
