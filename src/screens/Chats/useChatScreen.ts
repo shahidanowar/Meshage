@@ -6,33 +6,14 @@ import {
   Platform,
 } from 'react-native';
 import { StorageService } from '../../utils/storage';
-
-interface Peer {
-  deviceName: string;
-  deviceAddress: string;
-  status: number;
-  persistentId?: string; // Persistent ID extracted from deviceName
-  displayName?: string; // Username extracted from deviceName
-}
-
-interface DiscoveryEvent {
-  status: string;
-  reasonCode?: number;
-}
-
-interface Message {
-  id: string;
-  text: string;
-  fromAddress: string;
-  senderName: string;
-  timestamp: number;
-  isSent: boolean;
-}
-
-interface ConnectionInfo {
-  isGroupOwner: boolean;
-  groupOwnerAddress: string;
-}
+import type { 
+  Peer, 
+  Message, 
+  DiscoveryEvent, 
+  ConnectionInfo,
+  MessageReceivedEvent,
+  FriendRequest 
+} from '../../types';
 
 const { MeshNetwork } = NativeModules;
 const MeshNetworkEvents = new NativeEventEmitter(MeshNetwork);
@@ -69,7 +50,7 @@ export const useChatScreen = () => {
   const [showPeerModal, setShowPeerModal] = useState<boolean>(false);
   const [persistentId, setPersistentId] = useState<string>('');
   const [friendsList, setFriendsList] = useState<Set<string>>(new Set());
-  const [friendRequests, setFriendRequests] = useState<Array<{ persistentId: string; displayName: string; deviceAddress: string; timestamp: number; type?: 'incoming' | 'outgoing' }>>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const messagesEndRef = useRef<any>(null);
   const hasAutoStarted = useRef<boolean>(false);
   const connectionAttempts = useRef<Map<string, number>>(new Map());
@@ -353,7 +334,7 @@ export const useChatScreen = () => {
 
     const onMessageReceivedListener = MeshNetworkEvents.addListener(
       'onMessageReceived',
-      async (data: { message: string; fromAddress: string; senderName: string; timestamp: number }) => {
+      async (data: MessageReceivedEvent) => {
         console.log('Message received:', data);
         
         // Check if it's a friend request
