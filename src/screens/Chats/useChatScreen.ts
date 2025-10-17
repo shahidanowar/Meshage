@@ -160,13 +160,26 @@ export const useChatScreen = () => {
 
     const attemptConnection = (peer: Peer) => {
       const attempts = connectionAttempts.current.get(peer.deviceAddress) || 0;
+      const maxAttempts = 3;
       
       if (!connectedPeers.includes(peer.deviceAddress)) {
-        console.log(`Auto-connecting to: ${peer.deviceName} (attempt ${attempts + 1})`);
+        if (attempts >= maxAttempts) {
+          console.log(`Max connection attempts (${maxAttempts}) reached for: ${peer.deviceName}`);
+          return;
+        }
+        
+        console.log(`Auto-connecting to: ${peer.deviceName} (attempt ${attempts + 1}/${maxAttempts})`);
+        console.log(`Connection details:`, {
+          deviceAddress: peer.deviceAddress,
+          deviceName: peer.deviceName,
+          status: peer.status,
+          attempts: attempts + 1
+        });
+        
         MeshNetwork.connectToPeer(peer.deviceAddress);
         connectionAttempts.current.set(peer.deviceAddress, attempts + 1);
         
-        // Set retry timer (retry after 5 seconds if connection fails)
+        // Set retry timer (retry after 3 seconds if connection fails)
         const existingTimer = connectionRetryTimers.current.get(peer.deviceAddress);
         if (existingTimer) {
           clearTimeout(existingTimer);
@@ -175,13 +188,15 @@ export const useChatScreen = () => {
         const retryTimer = setTimeout(() => {
           // Check if still not connected and peer still available
           if (!connectedPeers.includes(peer.deviceAddress) && 
-              peers.some(p => p.deviceAddress === peer.deviceAddress && p.status === 3)) {
+              peers.some(p => p.deviceAddress === peer.deviceAddress)) {
             console.log(`Retrying connection to: ${peer.deviceName}`);
             attemptConnection(peer);
           }
-        }, 5000); // Retry after 5 seconds
+        }, 3000); // Retry after 3 seconds (reduced from 5)
         
         connectionRetryTimers.current.set(peer.deviceAddress, retryTimer);
+      } else {
+        console.log(`Skipping connection to ${peer.deviceName} - already connected`);
       }
     };
 
@@ -207,8 +222,22 @@ export const useChatScreen = () => {
         // Always auto-connect to available peers
         if (parsedPeers.length > 0) {
           parsedPeers.forEach((peer: Peer) => {
-            if (peer.status === 3 && !connectedPeers.includes(peer.deviceAddress)) {
-              console.log(`Found peer: ${peer.displayName} (ID: ${peer.persistentId || 'none'})`);
+            console.log(`Found peer: ${peer.displayName} (ID: ${peer.persistentId || 'none'})`);
+            console.log(`Peer details:`, {
+              deviceName: peer.deviceName,
+              deviceAddress: peer.deviceAddress,
+              status: peer.status,
+              statusMeaning: peer.status === 0 ? 'Connected' : peer.status === 3 ? 'Available' : 'Unknown',
+              isAvailable: peer.status === 3,
+              isAlreadyConnected: connectedPeers.includes(peer.deviceAddress),
+              willAutoConnect: (peer.status === 3 || peer.status !== 0) && !connectedPeers.includes(peer.deviceAddress)
+            });
+            
+            // Auto-connect if:
+            // 1. Status is 3 (Available) OR status is not 0 (not already connected)
+            // 2. Not already in our connected peers list
+            // This handles cases where status might be incorrect
+            if ((peer.status === 3 || peer.status !== 0) && !connectedPeers.includes(peer.deviceAddress)) {
               attemptConnection(peer);
             }
           });

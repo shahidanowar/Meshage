@@ -16,7 +16,8 @@ export const usePersonalChat = ({ friendId, friendName, friendAddress }: UsePers
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [connectedPeerAddresses, setConnectedPeerAddresses] = useState<string[]>([]);
+  const [connectedPeerIds, setConnectedPeerIds] = useState<Map<string, string>>(new Map()); // address -> persistentId
   const [myPersistentId, setMyPersistentId] = useState<string>('');
   const [myUsername, setMyUsername] = useState<string>('User');
   const messagesEndRef = useRef<any>(null);
@@ -43,17 +44,64 @@ export const usePersonalChat = ({ friendId, friendName, friendAddress }: UsePers
   // Check connection status
   useEffect(() => {
     const checkConnection = () => {
-      if (friendAddress && connectedPeers.includes(friendAddress)) {
-        setIsConnected(true);
-      } else {
-        setIsConnected(false);
-      }
+      // Check if friend is connected by either:
+      // 1. Device address match (if we have friendAddress)
+      // 2. Persistent ID match (check all connected peers)
+      const isConnectedByAddress = friendAddress && connectedPeerAddresses.includes(friendAddress);
+      const isConnectedById = Array.from(connectedPeerIds.values()).includes(friendId);
+      
+      const connected = isConnectedByAddress || isConnectedById;
+      setIsConnected(connected);
+      
+      console.log('PersonalChat - Connection check:', {
+        friendId,
+        friendAddress,
+        connectedPeerAddresses,
+        connectedPeerIds: Array.from(connectedPeerIds.entries()),
+        isConnectedByAddress,
+        isConnectedById,
+        finalStatus: connected
+      });
     };
     checkConnection();
-  }, [connectedPeers, friendAddress]);
+  }, [connectedPeerAddresses, connectedPeerIds, friendAddress, friendId]);
 
   // Listen to network events
   useEffect(() => {
+    // Listen to peers found to map addresses to persistent IDs
+    const onPeersFoundListener = MeshNetworkEvents.addListener(
+      'onPeersFound',
+      (peers: Array<{ deviceName: string; deviceAddress: string; status: number }>) => {
+        console.log('PersonalChat - Peers found:', peers.length);
+        
+        // Build mapping of connected peers (status 0 = connected)
+        const newConnectedAddresses: string[] = [];
+        const newPeerIdMap = new Map<string, string>();
+        
+        peers.forEach(peer => {
+          if (peer.status === 0) { // Connected
+            newConnectedAddresses.push(peer.deviceAddress);
+            
+            // Extract persistent ID from device name
+            const parts = peer.deviceName.split('|');
+            if (parts.length === 2) {
+              const persistentId = parts[1];
+              newPeerIdMap.set(peer.deviceAddress, persistentId);
+              console.log('PersonalChat - Peer mapping:', {
+                address: peer.deviceAddress,
+                name: parts[0],
+                persistentId,
+                isFriend: persistentId === friendId
+              });
+            }
+          }
+        });
+        
+        setConnectedPeerAddresses(newConnectedAddresses);
+        setConnectedPeerIds(newPeerIdMap);
+      }
+    );
+
     const onMessageReceivedListener = MeshNetworkEvents.addListener(
       'onMessageReceived',
       (data: { message: string; fromAddress: string; timestamp: number }) => {
@@ -115,21 +163,42 @@ export const usePersonalChat = ({ friendId, friendName, friendAddress }: UsePers
 
     const onPeerConnectedListener = MeshNetworkEvents.addListener(
       'onPeerConnected',
-      (data: { address: string }) => {
-        console.log('PersonalChat - Peer connected:', data.address);
-        setConnectedPeers(prev => [...new Set([...prev, data.address])]);
+      (data: { address: string; deviceName?: string } | string) => {
+        const address = typeof data === 'string' ? data : data.address;
+        const deviceName = typeof data === 'object' ? data.deviceName : undefined;
+        
+        console.log('PersonalChat - Peer connected:', address, deviceName);
+        setConnectedPeerAddresses(prev => [...new Set([...prev, address])]);
+        
+        // Extract persistent ID from device name if available
+        if (deviceName) {
+          const parts = deviceName.split('|');
+          if (parts.length === 2) {
+            const persistentId = parts[1];
+            setConnectedPeerIds(prev => new Map(prev).set(address, persistentId));
+            console.log('PersonalChat - Mapped peer:', { address, persistentId });
+          }
+        }
       }
     );
 
     const onPeerDisconnectedListener = MeshNetworkEvents.addListener(
       'onPeerDisconnected',
-      (data: { address: string }) => {
-        console.log('PersonalChat - Peer disconnected:', data.address);
-        setConnectedPeers(prev => prev.filter(p => p !== data.address));
+      (data: { address: string } | string) => {
+        const address = typeof data === 'string' ? data : data.address;
+        
+        console.log('PersonalChat - Peer disconnected:', address);
+        setConnectedPeerAddresses(prev => prev.filter(p => p !== address));
+        setConnectedPeerIds(prev => {
+          const updated = new Map(prev);
+          updated.delete(address);
+          return updated;
+        });
       }
     );
 
     return () => {
+      onPeersFoundListener.remove();
       onMessageReceivedListener.remove();
       onPeerConnectedListener.remove();
       onPeerDisconnectedListener.remove();
