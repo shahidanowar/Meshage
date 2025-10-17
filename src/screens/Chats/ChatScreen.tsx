@@ -89,21 +89,23 @@ const ChatScreen = () => {
     );
   };
 
-  const renderMessage = ({ item }: { item: any }) => (
-    <View
-      style={[
-        styles.messageItem,
-        item.isSent ? styles.sentMessage : styles.receivedMessage,
-      ]}>
-      <Text style={styles.messageSender}>
-        {item.isSent ? 'You' : (item.fromAddress || 'Unknown')}
-      </Text>
-      <Text style={styles.messageText}>{item.text}</Text>
-      <Text style={styles.messageTime}>
-        {new Date(item.timestamp).toLocaleTimeString()}
-      </Text>
-    </View>
-  );
+  const renderMessage = ({ item }: { item: any }) => {
+    return (
+      <View
+        style={[
+          styles.messageItem,
+          item.isSent ? styles.sentMessage : styles.receivedMessage,
+        ]}>
+        <Text style={styles.messageSender}>
+          {item.isSent? 'You' : (item.senderName || item.fromAddress || 'Unknown')}
+        </Text>
+        <Text style={styles.messageText}>{item.text}</Text>
+        <Text style={styles.messageTime}>
+          {new Date(item.timestamp).toLocaleTimeString()}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>

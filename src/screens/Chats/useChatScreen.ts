@@ -11,7 +11,7 @@ interface Peer {
   deviceName: string;
   deviceAddress: string;
   status: number;
-  persistentId?: string; // Persistent device ID extracted from deviceName
+  persistentId?: string; // Persistent ID extracted from deviceName
   displayName?: string; // Username extracted from deviceName
 }
 
@@ -24,6 +24,7 @@ interface Message {
   id: string;
   text: string;
   fromAddress: string;
+  senderName: string;
   timestamp: number;
   isSent: boolean;
 }
@@ -36,7 +37,7 @@ interface ConnectionInfo {
 const { MeshNetwork } = NativeModules;
 const MeshNetworkEvents = new NativeEventEmitter(MeshNetwork);
 
-// Utility function to parse device identifier "username|deviceId"
+// Utility function to parse device identifier "username|persistentId"
 const parseDeviceIdentifier = (deviceName: string): { displayName: string; persistentId?: string } => {
   const parts = deviceName.split('|');
   
@@ -66,7 +67,7 @@ export const useChatScreen = () => {
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('User');
   const [showPeerModal, setShowPeerModal] = useState<boolean>(false);
-  const [deviceId, setDeviceId] = useState<string>('');
+  const [persistentId, setPersistentId] = useState<string>('');
   const [friendsList, setFriendsList] = useState<Set<string>>(new Set());
   const [friendRequests, setFriendRequests] = useState<Array<{ persistentId: string; displayName: string; deviceAddress: string; timestamp: number; type?: 'incoming' | 'outgoing' }>>([]);
   const messagesEndRef = useRef<any>(null);
@@ -123,15 +124,16 @@ export const useChatScreen = () => {
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Load username and device ID from storage
+      // Load username and persistent ID from storage
       const savedUsername = await StorageService.getUsername();
-      const savedDeviceId = await StorageService.getDeviceId(); // Gets or creates device ID
+      const savedPersistentId = await StorageService.getPersistentId(); // Gets or creates persistent ID
       
       if (savedUsername) {
         setUsername(savedUsername);
       }
-      
-      setDeviceId(savedDeviceId);
+      console.log("usechat: username: ", savedUsername)
+      console.log("usechat: persistentId: ", savedPersistentId)
+      setPersistentId(savedPersistentId);
       
       // Load friends list
       const friends = await StorageService.getFriends();
@@ -143,16 +145,16 @@ export const useChatScreen = () => {
       setFriendRequests(requests);
       console.log('Loaded friend requests:', requests.length);
       
-      // Create device identifier: "username|deviceId"
+      // Create device identifier: "username|persistentId"
       // Format: "Alice|abc-123-def" so other devices can parse it
       const deviceIdentifier = savedUsername 
-        ? `${savedUsername}|${savedDeviceId}` 
-        : `User|${savedDeviceId}`;
+        ? `${savedUsername}|${savedPersistentId}` 
+        : `User|${savedPersistentId}`;
       
       console.log('Device Identifier:', deviceIdentifier);
-      console.log('Persistent Device ID:', savedDeviceId);
+      console.log('Persistent ID:', savedPersistentId);
       
-      // Update device name with username AND device ID
+      // Update device name with username AND persistent ID
       MeshNetwork.setDeviceName(deviceIdentifier);
       
       MeshNetwork.init();
@@ -314,9 +316,14 @@ export const useChatScreen = () => {
       'onPeerConnected',
       (data: { address: string } | string) => {
         const address = typeof data === 'string' ? data : data.address;
-        console.log('Peer connected:', address);
+        
+        // Find peer's display name from peers array
+        const peer = peers.find(p => p.deviceAddress === address);
+        const displayName = peer?.displayName || peer?.deviceName || address;
+        
+        console.log('Peer connected:', displayName, `(${address})`);
         setConnectedPeers(prev => [...new Set([...prev, address])]);
-        setStatus(`Peer connected: ${address}`);
+        setStatus(`Peer connected: ${displayName}`);
         
         // Clear retry timer for this peer since connection succeeded
         const timer = connectionRetryTimers.current.get(address);
@@ -333,15 +340,20 @@ export const useChatScreen = () => {
       'onPeerDisconnected',
       (data: { address: string } | string) => {
         const address = typeof data === 'string' ? data : data.address;
-        console.log('Peer disconnected:', address);
+        
+        // Find peer's display name from peers array
+        const peer = peers.find(p => p.deviceAddress === address);
+        const displayName = peer?.displayName || peer?.deviceName || address;
+        
+        console.log('Peer disconnected:', displayName, `(${address})`);
         setConnectedPeers(prev => prev.filter(p => p !== address));
-        setStatus(`Peer disconnected: ${address}`);
+        setStatus(`Peer disconnected: ${displayName}`);
       },
     );
 
     const onMessageReceivedListener = MeshNetworkEvents.addListener(
       'onMessageReceived',
-      async (data: { message: string; fromAddress: string; timestamp: number }) => {
+      async (data: { message: string; fromAddress: string; senderName: string; timestamp: number }) => {
         console.log('Message received:', data);
         
         // Check if it's a friend request
@@ -440,6 +452,7 @@ export const useChatScreen = () => {
           id: `${data.timestamp}-${data.fromAddress}`,
           text: data.message,
           fromAddress: data.fromAddress,
+          senderName: data.senderName, // Use sender name from message
           timestamp: data.timestamp,
           isSent: false,
         };
@@ -575,13 +588,14 @@ export const useChatScreen = () => {
     const newMessage: Message = {
       id: `${Date.now()}-sent`,
       text: messageText,
-      fromAddress: username, // Use username instead of 'You'
+      fromAddress: 'me', // Identifier for sent messages
+      senderName: username, // Display name
       timestamp: Date.now(),
       isSent: true,
     };
-    
+    console.log("usechat: newmessage: ", newMessage)
     setMessages(prev => [...prev, newMessage]);
-    MeshNetwork.sendMessage(messageText, null); // null = broadcast to all
+    MeshNetwork.sendMessage(messageText, username, null); // Pass username, null = broadcast to all
     setMessageText('');
     
     // Auto scroll to bottom
@@ -608,8 +622,8 @@ export const useChatScreen = () => {
     }
 
     // Send friend request to the peer
-    const friendRequestMessage = `FRIEND_REQUEST:${deviceId}:${username}`;
-    MeshNetwork.sendMessage(friendRequestMessage, peer.deviceAddress);
+    const friendRequestMessage = `FRIEND_REQUEST:${persistentId}:${username}`;
+    MeshNetwork.sendMessage(friendRequestMessage, username, peer.deviceAddress);
     
     // Save as outgoing request so we can track it
     await StorageService.addFriendRequest({
@@ -653,15 +667,15 @@ export const useChatScreen = () => {
     setFriendRequests(prev => prev.filter(r => r.persistentId !== request.persistentId));
     
     // Send acceptance message back - BROADCAST to ensure delivery
-    const acceptMessage = `FRIEND_ACCEPT:${deviceId}:${username}`;
+    const acceptMessage = `FRIEND_ACCEPT:${persistentId}:${username}`;
     
     // Try to send directly first
-    MeshNetwork.sendMessage(acceptMessage, request.deviceAddress);
+    MeshNetwork.sendMessage(acceptMessage, username, request.deviceAddress);
     console.log('Sent FRIEND_ACCEPT to:', request.deviceAddress);
     
     // Also broadcast to ensure the message reaches the requester
     setTimeout(() => {
-      MeshNetwork.sendMessage(acceptMessage, null);
+      MeshNetwork.sendMessage(acceptMessage, username, null);
       console.log('Broadcasted FRIEND_ACCEPT to all peers');
     }, 100);
     
@@ -694,7 +708,7 @@ export const useChatScreen = () => {
     selectedPeer,
     messagesEndRef,
     username,
-    deviceId, // Persistent device ID for friends feature
+    persistentId, // Persistent ID for friends feature
     showPeerModal,
     friendsList,
     friendRequests,

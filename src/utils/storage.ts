@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEYS = {
   USERNAME: '@meshage_username',
-  DEVICE_ID: '@meshage_device_id',
+  PERSISTENT_ID: '@meshage_persistent_id',
   FRIENDS: '@meshage_friends',
   FRIEND_REQUESTS: '@meshage_friend_requests',
   ONBOARDING_COMPLETE: '@meshage_onboarding_complete',
@@ -24,8 +24,8 @@ export interface FriendRequest {
   type?: 'incoming' | 'outgoing'; // Track if we sent or received the request
 }
 
-// Generate a unique device ID (UUID v4)
-const generateDeviceId = (): string => {
+// Generate a unique persistent ID (UUID v4)
+const generatePersistentId = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -64,37 +64,28 @@ export const StorageService = {
     }
   },
 
-  // Get or create device ID (persistent unique identifier)
-  getDeviceId: async (): Promise<string> => {
+  // Get or create persistent ID (persistent unique identifier)
+  getPersistentId: async (): Promise<string> => {
     try {
-      let deviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+      let persistentId = await AsyncStorage.getItem(STORAGE_KEYS.PERSISTENT_ID);
       
       // Generate new ID if doesn't exist
-      if (!deviceId) {
-        deviceId = generateDeviceId();
-        await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
-        console.log('Generated new device ID:', deviceId);
+      if (!persistentId) {
+        persistentId = generatePersistentId();
+        await AsyncStorage.setItem(STORAGE_KEYS.PERSISTENT_ID, persistentId);
+        console.log('Generated new persistent ID:', persistentId);
       } else {
-        console.log('Retrieved existing device ID:', deviceId);
+        console.log('Retrieved existing persistent ID:', persistentId);
       }
       
-      return deviceId;
+      return persistentId;
     } catch (error) {
-      console.error('Error getting device ID:', error);
+      console.error('Error getting persistent ID:', error);
       // Fallback to generating a new one
-      return generateDeviceId();
+      return generatePersistentId();
     }
   },
 
-  // Get device ID without creating (returns null if doesn't exist)
-  getExistingDeviceId: async (): Promise<string | null> => {
-    try {
-      return await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
-    } catch (error) {
-      console.error('Error getting existing device ID:', error);
-      return null;
-    }
-  },
 
   // Friends management
   getFriends: async (): Promise<Friend[]> => {

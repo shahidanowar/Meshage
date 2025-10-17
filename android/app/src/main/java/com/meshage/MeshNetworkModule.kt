@@ -149,15 +149,16 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
                         Payload.Type.BYTES -> {
                             val rawMessage = String(payload.asBytes()!!, StandardCharsets.UTF_8)
                             
-                            // Parse message format: "originalSenderId|||messageContent"
-                            val parts = rawMessage.split(MESSAGE_SEPARATOR, limit = 2)
-                            if (parts.size != 2) {
+                            // Parse message format: "originalSenderId|||senderName|||messageContent"
+                            val parts = rawMessage.split(MESSAGE_SEPARATOR, limit = 3)
+                            if (parts.size != 3) {
                                 Log.w(TAG, "Invalid message format received: $rawMessage")
                                 return
                             }
                             
                             val originalSenderId = parts[0]
-                            val messageContent = parts[1]
+                            val senderName = parts[1]
+                            val messageContent = parts[2]
                             
                             // Create hash based on original sender + message content
                             // This allows different users to send the same message
@@ -176,12 +177,13 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
                             // Clean up old messages from cache
                             cleanupOldMessages(currentTime)
                             
-                            Log.d(TAG, "Message received from $originalSenderId (via $endpointId): $messageContent")
+                            Log.d(TAG, "Message received from $senderName ($originalSenderId) via $endpointId: $messageContent")
                             
-                            // Emit message received event with ORIGINAL sender
+                            // Emit message received event with ORIGINAL sender and name
                             sendEvent("onMessageReceived", Arguments.createMap().apply {
                                 putString("message", messageContent)
                                 putString("fromAddress", originalSenderId)
+                                putString("senderName", senderName)
                                 putDouble("timestamp", currentTime.toDouble())
                             })
                             
@@ -313,20 +315,20 @@ class MeshNetworkModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun sendMessage(message: String, targetAddress: String?) {
+    fun sendMessage(message: String, senderName: String, targetAddress: String?) {
         // Ensure we have a local endpoint ID
         if (localEndpointId.isEmpty()) {
             localEndpointId = "local-${System.currentTimeMillis()}"
         }
         
-        // Format: "originalSenderId|||messageContent"
-        val formattedMessage = "$localEndpointId$MESSAGE_SEPARATOR$message"
+        // Format: "originalSenderId|||senderName|||messageContent"
+        val formattedMessage = "$localEndpointId$MESSAGE_SEPARATOR$senderName$MESSAGE_SEPARATOR$message"
         val payload = Payload.fromBytes(formattedMessage.toByteArray(StandardCharsets.UTF_8))
         
         // Mark sent message as seen to prevent receiving it back from others
         val messageHash = "$localEndpointId:$message".hashCode().toString()
         seenMessages[messageHash] = System.currentTimeMillis()
-        Log.d(TAG, "Marked sent message as seen: $message")
+        Log.d(TAG, "Marked sent message as seen from $senderName: $message")
         
         if (targetAddress != null) {
             // Send to specific peer
