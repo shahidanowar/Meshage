@@ -51,6 +51,7 @@ export const useChatScreen = () => {
   const [persistentId, setPersistentId] = useState<string>('');
   const [friendsList, setFriendsList] = useState<Set<string>>(new Set());
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [isRefreshingFriends, setIsRefreshingFriends] = useState<boolean>(false);
   const messagesEndRef = useRef<any>(null);
   const hasAutoStarted = useRef<boolean>(false);
   const connectionAttempts = useRef<Map<string, number>>(new Map());
@@ -103,6 +104,40 @@ export const useChatScreen = () => {
     }
   };
 
+  // NEW FUNCTION: Refresh friends list from storage
+  const refreshFriendsList = async () => {
+    console.log('🔄 Refreshing friends list from storage...');
+    const friends = await StorageService.getFriends();
+    const newFriendsList = new Set(friends.map(f => f.persistentId));
+    setFriendsList(newFriendsList);
+    console.log('✅ Friends list refreshed. Total friends:', newFriendsList.size);
+    return newFriendsList;
+  };
+
+  // NEW FUNCTION: Handle pull-to-refresh in peer modal
+  const handleRefreshPeerModal = async () => {
+    setIsRefreshingFriends(true);
+    try {
+      await refreshFriendsList();
+      // Also refresh friend requests
+      const requests = await StorageService.getFriendRequests();
+      setFriendRequests(requests);
+      console.log('✅ Friend requests refreshed. Total requests:', requests.length);
+    } catch (error) {
+      console.error('Error refreshing peer modal:', error);
+    } finally {
+      setIsRefreshingFriends(false);
+    }
+  };
+
+  // NEW EFFECT: Refresh friends list when peer modal is opened
+  useEffect(() => {
+    if (showPeerModal) {
+      console.log('📋 Peer modal opened - refreshing friends list...');
+      refreshFriendsList();
+    }
+  }, [showPeerModal]);
+
   useEffect(() => {
     const initializeApp = async () => {
       // Load username and persistent ID from storage
@@ -117,9 +152,7 @@ export const useChatScreen = () => {
       setPersistentId(savedPersistentId);
       
       // Load friends list
-      const friends = await StorageService.getFriends();
-      setFriendsList(new Set(friends.map(f => f.persistentId)));
-      console.log('Loaded friends:', friends.length);
+      await refreshFriendsList();
       
       // Load friend requests
       const requests = await StorageService.getFriendRequests();
@@ -326,15 +359,21 @@ export const useChatScreen = () => {
       'onPeerConnected',
       (data: { address: string } | string) => {
         const address = typeof data === 'string' ? data : data.address;
-        
-        // Find peer's display name from peers array
-        const peer = peers.find(p => p.deviceAddress === address);
-        const displayName = peer?.displayName || peer?.deviceName || address;
-        
-        console.log('Peer connected:', displayName, `(${address})`);
-        setConnectedPeers(prev => [...new Set([...prev, address])]);
-        setStatus(`Peer connected: ${displayName}`);
-        
+
+        console.log('Peer connected:', address);
+        // Mark connected peer in connectedPeers list
+        setConnectedPeers(prev => {
+          if (prev.includes(address)) return prev;
+          return [...new Set([...prev, address])];
+        });
+
+        // Update peers array: set status = 0 (Connected) if the peer is present
+        setPeers(prevPeers => prevPeers.map(p =>
+          p.deviceAddress === address ? { ...p, status: 0 } : p
+        ));
+
+        setStatus(prev => `Peer connected: ${address}`);
+
         // Clear retry timer for this peer since connection succeeded
         const timer = connectionRetryTimers.current.get(address);
         if (timer) {
@@ -346,18 +385,23 @@ export const useChatScreen = () => {
       },
     );
 
+
     const onPeerDisconnectedListener = MeshNetworkEvents.addListener(
       'onPeerDisconnected',
       (data: { address: string } | string) => {
         const address = typeof data === 'string' ? data : data.address;
-        
-        // Find peer's display name from peers array
-        const peer = peers.find(p => p.deviceAddress === address);
-        const displayName = peer?.displayName || peer?.deviceName || address;
-        
-        console.log('Peer disconnected:', displayName, `(${address})`);
+
+        console.log('Peer disconnected:', address);
+
+        // Remove from connectedPeers
         setConnectedPeers(prev => prev.filter(p => p !== address));
-        setStatus(`Peer disconnected: ${displayName}`);
+
+        // Update peers array: set status = 4 (Unavailable) if the peer is present
+        setPeers(prevPeers => prevPeers.map(p =>
+          p.deviceAddress === address ? { ...p, status: 4 } : p
+        ));
+
+        setStatus(prev => `Peer disconnected: ${address}`);
       },
     );
 
@@ -786,6 +830,20 @@ export const useChatScreen = () => {
     return friendsList.has(persistentId);
   };
 
+  const handleRemoveFriend = async (friendPersistentId: string) => {
+    // 1. Remove friend from local storage
+    await StorageService.removeFriend(friendPersistentId);
+
+    // 2. Update in-memory state so UI re-renders instantly
+    setFriendsList(prev => {
+      const newSet = new Set([...prev]);
+      newSet.delete(friendPersistentId);
+      return newSet;
+    });
+
+    console.log('✅ Friend removed:', friendPersistentId);
+  };
+
   return {
     // State
     status,
@@ -803,6 +861,7 @@ export const useChatScreen = () => {
     showPeerModal,
     friendsList,
     friendRequests,
+    isRefreshingFriends,
     
     // State setters
     setMessageText,
@@ -818,7 +877,9 @@ export const useChatScreen = () => {
     handleAddFriend,
     handleAcceptFriendRequest,
     handleRejectFriendRequest,
+    handleRefreshPeerModal,
     getPeerStatusText,
     isFriend,
+    handleRemoveFriend,
   };
 };
