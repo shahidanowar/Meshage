@@ -64,9 +64,7 @@ const PersonalChatScreen = () => {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.friendName}>{friendName}</Text>
-          <Text style={styles.connectionStatus}>
-            {isConnected ? '🟢 Online' : '⚪ Offline'}
-          </Text>
+          
         </View>
       </View>
 
