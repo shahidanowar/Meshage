@@ -394,4 +394,16 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  refreshHint: {
+  padding: 12,
+  backgroundColor: '#f0f0f0',
+  borderTopWidth: 1,
+  borderTopColor: '#e0e0e0',
+  alignItems: 'center',
+  },
+  refreshHintText: {
+    fontSize: 12,
+    color: '#8e8e93',
+    fontStyle: 'italic',
+  },
 });

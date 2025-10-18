@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { useChatScreen } from './useChatScreen';
 import { styles } from './ChatScreen.styles';
@@ -25,7 +26,9 @@ const ChatScreen = () => {
     messagesEndRef,
     username,
     showPeerModal,
+    friendsList,
     friendRequests,
+    isRefreshingFriends,
     setMessageText,
     setShowPeerModal,
     handleConnectToPeer,
@@ -33,6 +36,7 @@ const ChatScreen = () => {
     handleAddFriend,
     handleAcceptFriendRequest,
     handleRejectFriendRequest,
+    handleRefreshPeerModal,
     getPeerStatusText,
     isFriend,
   } = useChatScreen();
@@ -214,11 +218,22 @@ const ChatScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Peer List */}
+            {/* Peer List with Pull-to-Refresh */}
             <FlatList
               data={peers}
+              extraData={{ connectedPeers, friendRequests, friendsList }}
               renderItem={renderPeer}
               keyExtractor={item => item.deviceAddress}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshingFriends}
+                  onRefresh={handleRefreshPeerModal}
+                  colors={['#007AFF']}
+                  tintColor="#007AFF"
+                  title="Refreshing friends..."
+                  titleColor="#8e8e93"
+                />
+              }
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
@@ -228,6 +243,13 @@ const ChatScreen = () => {
               }
               contentContainerStyle={styles.modalListContainer}
             />
+            
+            {/* Pull-to-refresh hint */}
+            <View style={styles.refreshHint}>
+              <Text style={styles.refreshHintText}>
+                💡 Pull down to refresh friends list
+              </Text>
+            </View>
           </View>
         </View>
       </Modal>
